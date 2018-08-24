@@ -42,10 +42,11 @@ int main( int argc, char *argv[] )
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // To make MacOS happy; should not be needed
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // We don't want the old OpenGL
-	// glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE); // Suppress the pop out of the window
+	// The GLFW_VISIBLE command cannot be used. if window is not pop out, no value in frame buffer.
+	// glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE); // Suppress the pop out of the window. 
 
 	// Open a window and create its OpenGL context
-	window = glfwCreateWindow( 640, 480, "Tutorial 02 - Red triangle", NULL, NULL);
+	window = glfwCreateWindow( 640, 480, "", NULL, NULL);
 	if( window == NULL ){
 		fprintf( stderr, "Failed to open GLFW window. If you have an Intel GPU, they are not 3.3 compatible. Try the 2.1 version of the tutorials.\n" );
 		getchar();
@@ -74,6 +75,7 @@ int main( int argc, char *argv[] )
 	// Accept fragment if it closer to the camera than the former one
 	glDepthFunc(GL_LESS); 
 
+    // generate vertex array. 
 	GLuint VertexArrayID;
 	glGenVertexArrays(1, &VertexArrayID);
 	glBindVertexArray(VertexArrayID);
@@ -89,18 +91,21 @@ int main( int argc, char *argv[] )
 	// Get a handle for our "MVP" uniform
 	GLuint MatrixID = glGetUniformLocation(programID, "MVP");
 
-	// Projection matrix : 45° Field of View, 4:3 ratio, display range : 0.1 unit <-> 100 units
-	glm::mat4 Projection = glm::perspective(glm::radians(10.0f), 4.0f / 3.0f, 0.1f, 300000.0f);
+	// Intrinsic matrix : 10° Field of View, 4:3 ratio, display range : 0.1 unit <-> 300000 units
+	glm::mat4 Intrinsic = glm::perspective(glm::radians(10.0f), 4.0f / 3.0f, 0.1f, 300000.0f);
     // Or, for an ortho camera :
 	//glm::mat4 Projection = glm::ortho(-10.0f,10.0f,-10.0f,10.0f,0.0f,100.0f); // In world coordinates
 	
-	// Camera matrix
-	glm::mat4 View       = glm::lookAt(
-								glm::vec3(0,0,0), // Camera is at (4,3,3), in World Space
-								glm::vec3(0,0,-1), // and looks at the origin
-								glm::vec3(0,1,0)  // Head is up (set to 0,-1,0 to look upside-down)
+	// Camera's pose
+	glm::mat4 Camera_pose       = glm::lookAt(
+								glm::vec3(0,0,0), // Camera is at (0,0,0), in World Space
+								glm::vec3(0,0,-1), // and looks at the negative direction of the z axis
+								glm::vec3(0,1,0)  // Vertical direction is the positive direction
 						   );
-	// Model matrix : an identity matrix (model will be at the origin)
+
+	// Model's pose 
+    float roll, pitch, yaw;
+
 	float object_pose[16] = {
 		1.0f, 0.0f, 0.0f, 0.0f,
         0.0f, 1.0f, 0.0f, 0.0f,
@@ -110,11 +115,10 @@ int main( int argc, char *argv[] )
 	glm::mat4 ModelT = glm::make_mat4(object_pose);
     glm::mat4 Model = glm::transpose(ModelT);
 
-	// glm::mat4 Model      = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, 0.0f));
-	// glm::mat4 Model = glm::mat4(1.0f);
 	// Our ModelViewProjection : multiplication of our 3 matrices
-	glm::mat4 MVP        = Projection * View * Model; // Remember, matrix multiplication is the other way around
+	glm::mat4 MVP        = Intrinsic * Camera_pose * Model; // Remember, matrix multiplication is the other way around
 
+    //Load the satellite model
     std::vector<glm::vec3> vertices;
     std::string Model_Path;
     Model_Path = "/home/xinghui/Find-Silhouette/satellite_model.obj";
@@ -124,26 +128,14 @@ int main( int argc, char *argv[] )
     // Here is to define the color of the silhouette image
     std::vector<glm::vec3> color (vertices.size(), glm::vec3(0.7f, 0.7f, 0.7f));
     std::cout << "The size of color is " << color.size() << std:: endl;
-
-	// static const GLfloat g_color_buffer_data[]
-
-    // An array of 3 vectors which represents 3 vertices
-	// static const GLfloat g_vertex_buffer_data[] = { 
-	// 	-1.0f, -1.0f, 0.0f,
-	// 	 1.0f, -1.0f, 0.0f,
-	// 	 0.0f,  1.0f, 0.0f,
-	// };
     
     // This will identify our vertex buffer
 	GLuint vertexbuffer;
-	// Generate 1 buffer, put the resulting identifier in vertexbuffer
 	glGenBuffers(1, &vertexbuffer);
-	// The following commands will talk about our 'vertexbuffer' buffer
 	glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
-	// Give our vertices to OpenGL.
 	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec3)*vertices.size(), &vertices[0], GL_STATIC_DRAW);
-	// glBufferData(GL_ARRAY_BUFFER, sizeof(g_vertex_buffer_data), g_vertex_buffer_data, GL_STATIC_DRAW);
 
+    // create the color buffer
 	GLuint colorbuffer;
 	glGenBuffers(1, &colorbuffer);
 	glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
@@ -184,9 +176,10 @@ int main( int argc, char *argv[] )
 			(void*)0                          // array buffer offset
 		);
 
-		// Draw the triangle !
+		// Draw the model
 		glDrawArrays(GL_TRIANGLES, 0, vertices.size()*3); // 3 indices starting at 0 -> 1 triangle
         
+        // Save the frame as an image
         int width, height;
         glfwGetWindowSize(window, &width, &height);
         cv::Mat image(height, width, CV_8UC3);
