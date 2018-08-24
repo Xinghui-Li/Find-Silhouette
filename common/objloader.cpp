@@ -64,7 +64,7 @@ bool loadOBJ(
 		}else if ( strcmp( lineHeader, "f" ) == 0 ){
 			std::string vertex1, vertex2, vertex3;
 			unsigned int vertexIndex[3], uvIndex[3], normalIndex[3];
-			int matches = fscanf(file, "%d/%*d/%*d %d/%*d/%*d %d/%*d/%*d\n", &vertexIndex[0], &vertexIndex[1], &vertexIndex[2]);
+			int matches = fscanf(file, "%d//%*d %d//%*d %d//%*d\n", &vertexIndex[0], &vertexIndex[1], &vertexIndex[2]);
 			if (matches != 3){
 				printf("File can't be read by our simple parser :-( Try exporting with other options\n");
 				fclose(file);
