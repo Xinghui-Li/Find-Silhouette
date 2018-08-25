@@ -43,7 +43,7 @@ int main( int argc, char *argv[] )
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // To make MacOS happy; should not be needed
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // We don't want the old OpenGL
 	// The GLFW_VISIBLE command cannot be used. if window is not pop out, no value in frame buffer.
-	// glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE); // Suppress the pop out of the window. 
+	glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE); // Suppress the pop out of the window. 
 
 	// Open a window and create its OpenGL context
 	window = glfwCreateWindow( 640, 480, "", NULL, NULL);
@@ -107,8 +107,8 @@ int main( int argc, char *argv[] )
     float roll, pitch, yaw;
 
 	float object_pose[16] = {
-		1.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, 1.0f, 0.0f, 0.0f,
+		0.0f, -1.0f, 0.0f, 0.0f,
+        1.0f, 0.0f, 0.0f, 0.0f,
         0.0f, 0.0f, 1.0f, -200000.0f,
         0.0f, 0.0f, 0.0f, 1.0f
 	};
@@ -126,9 +126,15 @@ int main( int argc, char *argv[] )
     std::cout << "The size of vertices is " << vertices.size() << std:: endl;
 
     // Here is to define the color of the silhouette image
-    std::vector<glm::vec3> color (vertices.size(), glm::vec3(0.7f, 0.7f, 0.7f));
+    std::vector<glm::vec3> color (vertices.size(), glm::vec3(1.0f, 1.0f, 1.0f));
     std::cout << "The size of color is " << color.size() << std:: endl;
     
+
+    // create a new frame buffer so the subsequent operations are regarding to the new buffer frame. 
+    GLuint frameBuffer;
+    glGenFramebuffers(1, &frameBuffer);
+    glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
+
     // This will identify our vertex buffer
 	GLuint vertexbuffer;
 	glGenBuffers(1, &vertexbuffer);
@@ -141,6 +147,18 @@ int main( int argc, char *argv[] )
 	glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec3)*color.size(), &color[0], GL_STATIC_DRAW);
     
+    // generate the texture attachment to the framebuffer (follow the openGL tutorial, not so sure why )
+    GLuint texColorBuffer;
+    glGenTextures(1, &texColorBuffer);
+    glBindTexture(GL_TEXTURE_2D, texColorBuffer);
+
+    glTexImage2D( GL_TEXTURE_2D, 0, GL_RGB, 640, 480, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL );
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texColorBuffer, 0 );
+
 	// do{
 
 		// Clear the screen
@@ -188,6 +206,9 @@ int main( int argc, char *argv[] )
         glReadPixels(0 ,0 ,width ,height ,GL_RGB ,GL_UNSIGNED_BYTE, image.data);
         cv::flip(image, image, 0);
         cv::imwrite(out, image);
+        
+        // delete the framebuffer
+        glDeleteFramebuffers(1, &frameBuffer);
 
 		glDisableVertexAttribArray(0);
 
@@ -202,6 +223,7 @@ int main( int argc, char *argv[] )
     
 	// Cleanup VBO
 	glDeleteBuffers(1, &vertexbuffer);
+	glDeleteBuffers(1, &colorbuffer);
 	glDeleteVertexArrays(1, &VertexArrayID);
 	glDeleteProgram(programID);
 
