@@ -11,12 +11,15 @@ set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 # include_directories(/usr/local/include/GLFW)
 find_package(OpenGL REQUIRED)
 
+
+
 add_subdirectory (external)
 
 include_directories(
 	external/glfw-3.2.1/include/
 	external/glm-0.9.9.0/
 	external/glew-1.13.0/include/
+	/usr/local/include/eigen3/
 	.
 )
 
@@ -46,6 +49,8 @@ ADD_EXECUTABLE( FindSilhouette main.cpp
 	
 	SimpleFragmentShader.fragmentshader
 	SimpleVertexShader.vertexshader)
+
+ADD_EXECUTABLE( test optimizer.cpp)
 
 TARGET_LINK_LIBRARIES (FindSilhouette ${OpenCV_LIBS})
 TARGET_LINK_LIBRARIES (FindSilhouette ${ALL_LIBS})

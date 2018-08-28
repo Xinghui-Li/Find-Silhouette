@@ -19,21 +19,21 @@
 
 bool loadOBJ(
 	const char * path, 
-	std::vector<glm::vec3> & out_vertices 
+	std::vector<glm::vec3> & out_vertices,
+	std::vector<glm::vec3> & VertexMember
 	// std::vector<glm::vec2> & out_uvs,
 	// std::vector<glm::vec3> & out_normals
 ){
 	printf("Loading OBJ file %s...\n", path);
 
 	std::vector<unsigned int> vertexIndices, uvIndices, normalIndices;
-	std::vector<glm::vec3> temp_vertices; 
 	// std::vector<glm::vec2> temp_uvs;
 	// std::vector<glm::vec3> temp_normals;
 
 
 	FILE * file = fopen(path, "r");
 	if( file == NULL ){
-		printf("Impossible to open the file ! Are you in the right path ? See Tutorial 1 for details\n");
+		printf("Cannot open the file\n");
 		getchar();
 		return false;
 	}
@@ -51,7 +51,7 @@ bool loadOBJ(
 		if ( strcmp( lineHeader, "v" ) == 0 ){
 			glm::vec3 vertex;
 			fscanf(file, "%f %f %f\n", &vertex.x, &vertex.y, &vertex.z );
-			temp_vertices.push_back(vertex);
+			VertexMember.push_back(vertex);
 		// }else if ( strcmp( lineHeader, "vt" ) == 0 ){
 		// 	glm::vec2 uv;
 		// 	fscanf(file, "%f %f\n", &uv.x, &uv.y );
@@ -96,7 +96,7 @@ bool loadOBJ(
 		// unsigned int normalIndex = normalIndices[i];
 		
 		// Get the attributes thanks to the index
-		glm::vec3 vertex = temp_vertices[ vertexIndex-1 ];
+		glm::vec3 vertex = VertexMember[ vertexIndex-1 ];
 		// glm::vec2 uv = temp_uvs[ uvIndex-1 ];
 		// glm::vec3 normal = temp_normals[ normalIndex-1 ];
 		

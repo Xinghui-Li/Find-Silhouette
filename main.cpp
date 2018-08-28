@@ -120,10 +120,12 @@ int main( int argc, char *argv[] )
 
     //Load the satellite model
     std::vector<glm::vec3> vertices;
+    std::vector<glm::vec3> VertexMember;
     std::string Model_Path;
     Model_Path = "/home/xinghui/Find-Silhouette/satellite_model.obj";
-    bool res = loadOBJ( Model_Path.c_str(), vertices);
+    bool res = loadOBJ( Model_Path.c_str(), vertices, VertexMember);
     std::cout << "The size of vertices is " << vertices.size() << std:: endl;
+    std::cout << "The size of VertexMember is " << VertexMember.size() << std:: endl;
 
     // Here is to define the color of the silhouette image
     std::vector<glm::vec3> color (vertices.size(), glm::vec3(1.0f, 1.0f, 1.0f));
@@ -152,7 +154,7 @@ int main( int argc, char *argv[] )
     glGenTextures(1, &texColorBuffer);
     glBindTexture(GL_TEXTURE_2D, texColorBuffer);
 
-    glTexImage2D( GL_TEXTURE_2D, 0, GL_RGB, 640, 480, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL );
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 640, 480, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -162,7 +164,6 @@ int main( int argc, char *argv[] )
 	// do{
 
 		// Clear the screen
-		// glClear( GL_COLOR_BUFFER_BIT );
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		// Use our shader
