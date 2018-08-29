@@ -198,7 +198,7 @@ int main( int argc, char *argv[] )
 		// Draw the model
 		glDrawArrays(GL_TRIANGLES, 0, vertices.size()*3); // 3 indices starting at 0 -> 1 triangle
         
-        // Save the frame as an image
+        // Save the frame as an 3-channel image
         int width, height;
         glfwGetWindowSize(window, &width, &height);
         cv::Mat image(height, width, CV_8UC3);

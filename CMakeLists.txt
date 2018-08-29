@@ -50,7 +50,10 @@ ADD_EXECUTABLE( FindSilhouette main.cpp
 	SimpleFragmentShader.fragmentshader
 	SimpleVertexShader.vertexshader)
 
+
+TARGET_LINK_LIBRARIES (FindSilhouette ${OpenCV_LIBS} ${ALL_LIBS})
+
 ADD_EXECUTABLE( test optimizer.cpp)
 
-TARGET_LINK_LIBRARIES (FindSilhouette ${OpenCV_LIBS})
-TARGET_LINK_LIBRARIES (FindSilhouette ${ALL_LIBS})
+TARGET_LINK_LIBRARIES (test ${OpenCV_LIBS} ${ALL_LIBS})
+

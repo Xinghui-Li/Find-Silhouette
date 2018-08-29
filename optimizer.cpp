@@ -8,6 +8,11 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <Eigen/Eigen>
 
+#include "opencv2/core/core.hpp"
+#include "opencv2/highgui/highgui.hpp"
+#include "opencv2/imgproc/imgproc.hpp"
+#include "opencv2/imgcodecs.hpp"
+
 // Convert glm vec3 to eigen vector3f
 Eigen::Vector3f ConvertGlmToEigen3f( glm::vec3 v ) {
     
@@ -26,15 +31,19 @@ Eigen::Matrix4f ConvertGlmToEigenMat4f ( glm::mat4 mat ) {
     Eigen::Matrix4f out_mat;
 
     for ( int i = 0; i < 4; i++){
+
     	for (int j = 0; j < 4; j++){
+
            out_mat(i,j) = mat[j][i];  // In glm::mat4, the first index indicating column and the second indicating row. 
+
     	}
+
     }
 
     return out_mat;
 }
 
-// Dehomogeneous the vector from 4 element down to 3
+// Dehomogeneous the vector from 4 element down to 3.
 Eigen::Vector3f pi4to3 ( Eigen::Vector4f v ) {
     
     Eigen::Vector3f out_v;
@@ -46,27 +55,93 @@ Eigen::Vector3f pi4to3 ( Eigen::Vector4f v ) {
     return out_v; 
 }
 
+// Dehomogeneous the vector from 3 element down to 2.
+Eigen::Vector2f pi3to2 ( Eigen::Vector3f v ) {
+    
+    Eigen::Vector2f out_v;
+
+    out_v[0] = v[0]/v[2];
+    out_v[1] = v[1]/v[2];
+
+    return out_v; 
+}
+
+// Search the 5*5 neighbour of the selected pixel (x,y) to see if any of its neighbours is background, return true if it have background in its neighbour. 
+// Quite stupid, could find a better way. 
+bool SearchNeighbour (cv::Mat image, int x, int y ) {
+ 
+    int count = 0;
+
+	for (int i = -2; i < 3; i++) {
+
+		for (int j = -2; j < 3; j++) {
+            
+            // in opencv index of mat is as (row, column), in another words (y,x)
+			if ( image.at<cv::Vec3b>(y+i,x+j)[0] < 50 && 0 <= x+j && x+j < image.cols && 0 <= y+i && y+i < image.rows){
+ 
+				count++;
+
+			}
+		}
+	}
+
+	if ( count > 0 ){
+		
+		return true;
+
+	}else{
+
+		return false;
+
+	} 
+}
+
+// Draw a point on the image at coordinate (x,y)
+void DrawPoint (cv::Mat image, int x , int y ){
+
+	cv::Vec3b Red (0, 0, 255);
+
+    for (int i = -2; i < 3; i++) {
+
+		for (int j = -2; j < 3; j++) {
+            
+            if (0 <= x+j && x+j < image.cols && 0 <= y+i && y+i < image.rows){
+
+			image.at<cv::Vec3b>( y+i, x+j ) = Red;
+
+            }
+		}
+	}
+
+}
+
+// project a 3D point to the image and check whether it is on the silhouette  
+// bool OnSilhouette (cv::Mat image, Eigen::Vector4f point, Eigen::Matrix4f perspective, Eigen::Matrix4f camera_pose, Eigen::Matrix4f model_pose){
+    
+//     Eigen::Vector4f = perspective * camera_pose * model_pose * 
+
+// }
+
 int main(int argc, char const *argv[])
 {
-	// glm::mat4 Intrinsic = glm::perspective(glm::radians(10.0f), 640.0f / 480.0f, 0.5f, 10000.0f);
-	// float object_pose[16] = {
-	// 	0.0f, -1.0f, 0.0f, 0.0f,
- //        1.0f, 0.0f, 0.0f, 0.0f,
- //        0.0f, 0.0f, 1.0f, -200000.0f,
- //        0.0f, 0.0f, 0.0f, 1.0f
-	// };
-	// glm::mat4 ModelT = glm::make_mat4(object_pose);
- //    glm::mat4 Model = glm::transpose(ModelT);
- //    glm::mat4 Camera_pose       = glm::lookAt(
-	// 							glm::vec3(0,0,0), // Camera is at (0,0,0), in World Space
-	// 							glm::vec3(0,0,-1), // and looks at the negative direction of the z axis
-	// 							glm::vec3(0,1,0)  // Vertical direction is the positive direction
-	// 					   );
-	// Eigen::Matrix4f Matrix = ConvertGlmToEigenMat4f(Intrinsic);
-	// Eigen::IOFormat CleanFmt(4, 0, ", ", "\n", "[", "]");
+    cv::Mat image;
 
-	Eigen::Vector4f v (1.0f, 2.0f, 3.0f, 4.0f);
-	Eigen::Vector3f out_v = pi4to3(v);
-	std::cout << out_v << std::endl ;
+    std::string path = "/home/xinghui/Find-Silhouette/image.png";
+
+    image = cv::imread( path.c_str() );
+
+    Eigen::Vector2i point (320,240);
+    
+    bool result = SearchNeighbour(image, point[0], point[1]);
+
+    std::cout << " the pixel value at " << "( " << point[0] << "," << point[1] << " )" << " is " << int(image.at<cv::Vec3b>( point[1], point[0] )[0]) << std::endl;
+    
+    DrawPoint(image, point[0], point[1] );
+    DrawPoint(image, 0, 0);
+    cv::imshow(" ", image);
+    cvWaitKey(0);
+
+    std::cout << result << std::endl;
+
 	return 0;
 }
