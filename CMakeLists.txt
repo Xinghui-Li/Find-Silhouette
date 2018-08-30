@@ -53,7 +53,9 @@ ADD_EXECUTABLE( FindSilhouette main.cpp
 
 TARGET_LINK_LIBRARIES (FindSilhouette ${OpenCV_LIBS} ${ALL_LIBS})
 
-ADD_EXECUTABLE( test optimizer.cpp)
+ADD_EXECUTABLE( test optimizer.cpp
+	common/objloader.hpp
+	common/objloader.cpp)
 
 TARGET_LINK_LIBRARIES (test ${OpenCV_LIBS} ${ALL_LIBS})
 

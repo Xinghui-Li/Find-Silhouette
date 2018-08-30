@@ -92,31 +92,31 @@ int main( int argc, char *argv[] )
 	GLuint MatrixID = glGetUniformLocation(programID, "MVP");
 
 	// Intrinsic matrix : 10° Field of View, 4:3 ratio, display range : 0.1 unit <-> 300000 units
-	glm::mat4 Intrinsic = glm::perspective(glm::radians(10.0f), 4.0f / 3.0f, 0.1f, 300000.0f);
+	glm::mat4 perspective = glm::perspective(glm::radians(10.0f), 4.0f / 3.0f, 0.1f, 300000.0f);
     // Or, for an ortho camera :
 	//glm::mat4 Projection = glm::ortho(-10.0f,10.0f,-10.0f,10.0f,0.0f,100.0f); // In world coordinates
 	
 	// Camera's pose
 	glm::mat4 Camera_pose       = glm::lookAt(
 								glm::vec3(0,0,0), // Camera is at (0,0,0), in World Space
-								glm::vec3(0,0,-1), // and looks at the negative direction of the z axis
-								glm::vec3(0,1,0)  // Vertical direction is the positive direction
+								glm::vec3(0,0,1), // and looks at the negative direction of the z axis
+								glm::vec3(0,-1,0)  // Vertical direction is the positive direction
 						   );
 
 	// Model's pose 
     float roll, pitch, yaw;
 
 	float object_pose[16] = {
-		0.0f, -1.0f, 0.0f, 0.0f,
-        1.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, 1.0f, -200000.0f,
+		0.0f, 1.0f, 0.0f, 0.0f,
+        -1.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 200000.0f,
         0.0f, 0.0f, 0.0f, 1.0f
 	};
 	glm::mat4 ModelT = glm::make_mat4(object_pose);
     glm::mat4 Model = glm::transpose(ModelT);
 
 	// Our ModelViewProjection : multiplication of our 3 matrices
-	glm::mat4 MVP        = Intrinsic * Camera_pose * Model; // Remember, matrix multiplication is the other way around
+	glm::mat4 MVP        = perspective * Camera_pose * Model; // Remember, matrix multiplication is the other way around
 
     //Load the satellite model
     std::vector<glm::vec3> vertices;
