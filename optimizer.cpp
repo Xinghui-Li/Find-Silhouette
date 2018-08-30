@@ -184,13 +184,13 @@ int main(int argc, char const *argv[])
     glm::mat4 perspective = glm::perspective(glm::radians(10.0f), 4.0f / 3.0f, 0.1f, 300000.0f);
     glm::mat4 Camera_pose       = glm::lookAt(
 								glm::vec3(0,0,0), // Camera is at (0,0,0), in World Space
-								glm::vec3(0,0,1), // and looks at the negative direction of the z axis
-								glm::vec3(0,-1,0)  // Vertical direction is the positive direction
+								glm::vec3(0,0,-1), // and looks at the negative direction of the z axis
+								glm::vec3(0,1,0)  // Vertical direction is the positive direction
 						   );
     float object_pose[16] = {
-		0.0f, 1.0f, 0.0f, 0.0f,
-        -1.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, 1.0f, 200000.0f,
+		0.0f, -1.0f, 0.0f, 0.0f,
+        1.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, -200000.0f,
         0.0f, 0.0f, 0.0f, 1.0f
 	};
 	glm::mat4 ModelT = glm::make_mat4(object_pose);
@@ -234,72 +234,64 @@ int main(int argc, char const *argv[])
         v.push_back(v_temp);
     }
 
-    Eigen::Affine3f M;
-    M.matrix() = Eigen_Camera_pose * Eigen_Model;
 
-    Eigen::Vector3f Tw = M.translation();
-    Eigen::Matrix3f Rw = M.linear();
-    for (int r = 1; r < 3; r++){
-        for    (int c = 0; c < 3; c++){
-            Rw(r,c) = -Rw(r,c);
-        }
-        Tw(r) = -Tw(r);
-    }
 
-    Eigen::Matrix3f K;
 
-    K << 2743, 0, 320,0, 2743, 240, 0, 0, 1;
-    std::cout << K << std::endl;
+
     
-    for (int i=0; i < v.size(); i++){
+    int width = 640;
+    int height = 480;
 
+    for (int i = 0; i < v.size(); i++){
+        
         Eigen::Vector3f vertex = v[i];
-        Eigen::Vector3f x_hat = K*(Rw*vertex+Tw);
-    
-    
-        Eigen::Vector2f x = pi3to2f(x_hat);
-        int image_x = FloatRoundToInt(x[0]);
-        int image_y = FloatRoundToInt(x[1]);
+        Eigen::Vector4f vertex_hat = pi3to4f(vertex);
 
-        // std::cout << x << std::endl;  
+        Eigen::Vector4f projection = transform * vertex_hat;
+        Eigen::Vector3f x_hat = pi4to3f(projection);
+        
+        int image_x = FloatRoundToInt(x_hat[0]*width*0.5+width*0.5);
+        int image_y = FloatRoundToInt(-x_hat[1]*height*0.5+height*0.5);
+
         DrawPoint(image, image_x, image_y );
     }
+
+
+
+
+    // Eigen::Affine3f M;
+    // M.matrix() = Eigen_Camera_pose * Eigen_Model;
+
+    // Eigen::Vector3f Tw = M.translation();
+    // Eigen::Matrix3f Rw = M.linear();
+    // for (int r = 1; r < 3; r++){
+    //     for    (int c = 0; c < 3; c++){
+    //         Rw(r,c) = -Rw(r,c);
+    //     }
+    //     Tw(r) = -Tw(r);
+    // }
+
+    // Eigen::Matrix3f K;
+
+    // K << 2743, 0, 320,0, 2743, 240, 0, 0, 1;
+    // std::cout << K << std::endl;
+    
+    // for (int i=0; i < v.size(); i++){
+
+    //     Eigen::Vector3f vertex = v[i];
+    //     Eigen::Vector3f x_hat = K*(Rw*vertex+Tw);
+    
+    
+    //     Eigen::Vector2f x = pi3to2f(x_hat);
+    //     int image_x = FloatRoundToInt(x[0]);
+    //     int image_y = FloatRoundToInt(x[1]);
+
+    //     // std::cout << x << std::endl;  
+    //     DrawPoint(image, image_x, image_y );
+    // }
     cv::imshow(" ", image);
     cvWaitKey(0);
 
-    // std::vector<glm::vec3> vertices;
-    // std::vector<glm::vec3> VertexMember;
-    // std::string Model_Path;
-    // Model_Path = "/home/xinghui/Find-Silhouette/satellite_model.obj";
-    // bool res = loadOBJ( Model_Path.c_str(), vertices, VertexMember);
-
-    // std::vector<Eigen::Vector3f> v;
-    // for (int i=0; i < VertexMember.size(); i++){
-        
-    //     Eigen::Vector3f v_temp = ConvertGlmToEigen3f(VertexMember[i]);
-    //     v.push_back(v_temp);
-    // }
-
-    // for (int i=0; i < v.size(); i++){
-
-    // Eigen::Vector4f vertex4f = pi3to4f(v[i]);
-
-    // Eigen::Vector4f projection = transform * vertex4f;
-    // Eigen::Vector3f dehomo_projection = pi4to3f (projection);
-
-    // int image_x = FloatRoundToInt(dehomo_projection[0]);
-    // int image_y = FloatRoundToInt(dehomo_projection[1]);
-    
-    // DrawPoint(image, image_x, image_y ); 
-    // }
-
-    // Eigen::Vector4f vertex4f = pi3to4f(v[0]);
-    // Eigen::Vector4f projection = transform * vertex4f;
-    // std::cout << projection << std::endl;
-    
-    // DrawPoint(image, 200, 300 );
-    // cv::imshow(" ", image);
-    // cvWaitKey(0);
     
 
 

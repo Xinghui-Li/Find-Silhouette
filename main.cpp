@@ -99,17 +99,17 @@ int main( int argc, char *argv[] )
 	// Camera's pose
 	glm::mat4 Camera_pose       = glm::lookAt(
 								glm::vec3(0,0,0), // Camera is at (0,0,0), in World Space
-								glm::vec3(0,0,1), // and looks at the negative direction of the z axis
-								glm::vec3(0,-1,0)  // Vertical direction is the positive direction
+								glm::vec3(0,0,-1), // and looks at the negative direction of the z axis
+								glm::vec3(0,1,0)  // Vertical direction is the positive direction
 						   );
 
 	// Model's pose 
     float roll, pitch, yaw;
 
 	float object_pose[16] = {
-		0.0f, 1.0f, 0.0f, 0.0f,
-        -1.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, 1.0f, 200000.0f,
+		0.0f, -1.0f, 0.0f, 0.0f,
+        1.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, -200000.0f,
         0.0f, 0.0f, 0.0f, 1.0f
 	};
 	glm::mat4 ModelT = glm::make_mat4(object_pose);
