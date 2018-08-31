@@ -15,6 +15,9 @@
 
 #include <common/objloader.hpp>
 
+using namespace cv;
+using namespace std;
+
 // Convert glm vec3 to eigen vector3f
 Eigen::Vector3f ConvertGlmToEigen3f( glm::vec3 v ) {
     
@@ -111,16 +114,19 @@ int FloatRoundToInt(float a){
 
 }
 
-// Search the 5*5 neighbour of the selected pixel (x,y) to see if any of its neighbours is background, return true if it have background in its neighbour. 
+// Search the 3*3 neighbour of the selected pixel (x,y) to see if any of its neighbours is background, return true if it have background in its neighbour. 
 // Quite stupid, could find a better way. 
 bool SearchNeighbour (cv::Mat image, int x, int y ) {
  
     int count = 0;
 
-	for (int i = -2; i < 3; i++) {
-		for (int j = -2; j < 3; j++) {            
+	for (int i = -1; i < 2; i++) {
+		for (int j = -1; j < 2; j++) {            
             // in opencv index of mat is as (row, column), in another words (y,x)
-			if ( image.at<cv::Vec3b>(y+i,x+j)[0] < 50 && 0 <= x+j && x+j < image.cols && 0 <= y+i && y+i < image.rows){ 
+			if ( image.at<cv::Vec3b>(y+i,x+j)[0] < 50 && 
+                 image.at<cv::Vec3b>(y+i,x+j)[1] < 50 &&
+                 image.at<cv::Vec3b>(y+i,x+j)[2] < 50 &&
+                0 <= x+j && x+j < image.cols && 0 <= y+i && y+i < image.rows){ 
 
 				count++;
 
@@ -157,21 +163,21 @@ void DrawPoint (cv::Mat image, int x , int y ){
 
 }
 
-// project a 3D point to the image and check whether it is on the silhouette  
-bool OnSilhouette (cv::Mat image, Eigen::Vector4f point, Eigen::Matrix4f perspective, Eigen::Matrix4f camera_pose, Eigen::Matrix4f model_pose){
-    
-    Eigen::Vector4f projection = perspective * camera_pose * model_pose * point;
-    Eigen::Vector3f dehomo_projection = pi4to3f (projection);
-    
+// Project the 3D point on the opencv image with defined coordinate
+Eigen::Vector2i ProjectOnCVimage (int width, int height, Eigen::Matrix4f perspective, Eigen::Matrix4f camera_pose, Eigen::Matrix4f model_pose, Eigen::Vector3f vertex){
 
-    int image_x = FloatRoundToInt(dehomo_projection[0]);
-    int image_y = FloatRoundToInt(dehomo_projection[1]);
+    Eigen::Vector4f vertex_hat = pi3to4f(vertex);
 
-    bool result = SearchNeighbour(image, image_x, image_y);
+    Eigen::Vector4f projection = perspective * camera_pose * model_pose * vertex_hat;
+    Eigen::Vector3f x_hat = pi4to3f(projection);
+        
+    Eigen::Vector2i pixel;    
+    pixel[0] = FloatRoundToInt(x_hat[0]*width*0.5+width*0.5);
+    pixel[1] = FloatRoundToInt(-x_hat[1]*height*0.5+height*0.5);
 
-    return result;
-
+    return pixel;
 }
+
 
 int main(int argc, char const *argv[])
 {
@@ -202,22 +208,6 @@ int main(int argc, char const *argv[])
     Eigen::Matrix4f Eigen_Camera_pose = ConvertGlmToEigenMat4f(Camera_pose);
     Eigen::Matrix4f Eigen_Model = ConvertGlmToEigenMat4f(Model);
 
-    Eigen::Matrix4f transform = Eigen_perspective * Eigen_Camera_pose * Eigen_Model;
-
-    std::cout << "perspective" << std::endl;
-    std::cout << Eigen_perspective << std::endl;
-    std::cout << "Camera_pose" << std::endl;
-    std::cout << Eigen_Camera_pose << std::endl;
-    std::cout << "Model" << std::endl; 
-    std::cout << Eigen_Model << std::endl;
-    std::cout << "transform" << std::endl;
-    std::cout << transform << std::endl;
-    std::cout << "MVP" << std::endl;
-    std::cout << ConvertGlmToEigenMat4f(MVP) << std::endl; 
-
-    std::cout << "Camera*Model" << std::endl; 
-    std::cout << Eigen_Camera_pose * Eigen_Model << std::endl;
-
     // Eigen::Vecto3f vertex (-299.761108, -1790.010132, -1401.049927);
 
     std::vector<glm::vec3> vertices;
@@ -234,31 +224,84 @@ int main(int argc, char const *argv[])
         v.push_back(v_temp);
     }
 
-
-
-
-
+    
+    
     
     int width = 640;
     int height = 480;
+    
+    std::vector<Eigen::Vector2i> v_silhouette;
 
     for (int i = 0; i < v.size(); i++){
-        
-        Eigen::Vector3f vertex = v[i];
-        Eigen::Vector4f vertex_hat = pi3to4f(vertex);
 
-        Eigen::Vector4f projection = transform * vertex_hat;
-        Eigen::Vector3f x_hat = pi4to3f(projection);
-        
-        int image_x = FloatRoundToInt(x_hat[0]*width*0.5+width*0.5);
-        int image_y = FloatRoundToInt(-x_hat[1]*height*0.5+height*0.5);
+        Eigen::Vector2i pixel = ProjectOnCVimage(width, height, Eigen_perspective, Eigen_Camera_pose, Eigen_Model, v[i]);
 
-        DrawPoint(image, image_x, image_y );
+        if (SearchNeighbour(image, pixel[0], pixel[1]) == 1){
+
+            v_silhouette.push_back(pixel);
+        }
     }
 
+    for (int i = 0; i < v_silhouette.size(); i++){
+        
+        Eigen::Vector2i pixel = v_silhouette[i];
+
+        DrawPoint(image, pixel[0], pixel[1]);
+        
+    }
+    
 
 
+    std::string original_path = "/home/xinghui/Find-Silhouette/camera_image.png";
+    std::string noise_path = "/home/xinghui/Find-Silhouette/noise.png";
 
+    cv::Mat input = cv::imread(original_path.c_str());
+    cv::Mat noise = cv::imread(noise_path.c_str());
+
+    cv::Mat im_temp = input - noise; 
+    cv::Mat denoise;
+    // morph_elem define the shape of the kernel
+        // 0: MORPH_RECT
+        // 1: MORPH_CROSS
+        // 2: MORPH_ELLIPSE
+    int morph_elem = 0;
+    // morph_size defines the size of the kernel
+    int morph_size =2;
+    // morph_operator defines the operation
+        // 0: MORPH_ERODE
+        // 1: MORPH_DILATE
+        // 2: MORPH_OPEN
+        // 3: MORPH_CLOSE
+        // 4: MORPH_GRADIENT
+        // 5: MORPH_TOPHAT
+        // 6: MORPH_BLACKHAT
+        // 7: MORPH_HITMISS
+    int morph_operator = 3;
+
+    cv::Mat element = cv::getStructuringElement(morph_elem, cv::Size(2 * morph_size + 1, 2 * morph_size + 1), cv::Point(morph_size, morph_size));
+
+    cv::morphologyEx(im_temp, denoise, morph_operator, element);
+
+    cv::Mat edge;
+    cv::Canny(denoise, edge, 0, 255, 3, true);
+    cv::Mat binary;
+    cv::Mat voronoi;
+    cv::threshold(edge, binary, 50, 255, cv::THRESH_BINARY_INV);
+
+    cv::Mat dist;
+    cv::distanceTransform(binary, dist, DIST_L2, DIST_MASK_PRECISE );
+    
+    dist *= 100;
+    pow(dist, 0.5, dist);
+    Mat dist32s, dist8u1;
+    dist.convertTo(dist32s, CV_32S, 1, 0.5);
+    // cout << dist32s << endl;
+    dist32s &= Scalar::all(255);
+    // cout << dist32s << endl;
+    dist32s.convertTo(dist8u1, CV_8U, 1, 0);
+
+    cv::imshow(" ", dist8u1);
+    
     // Eigen::Affine3f M;
     // M.matrix() = Eigen_Camera_pose * Eigen_Model;
 
@@ -289,7 +332,7 @@ int main(int argc, char const *argv[])
     //     // std::cout << x << std::endl;  
     //     DrawPoint(image, image_x, image_y );
     // }
-    cv::imshow(" ", image);
+    
     cvWaitKey(0);
 
     
