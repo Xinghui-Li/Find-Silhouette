@@ -40,6 +40,7 @@ add_definitions(
 find_package(OpenCV REQUIRED )
 include_directories(${OpenCV_INCLUDE_DIRS})
 
+find_package(Sophus)
 
 ADD_EXECUTABLE( FindSilhouette main.cpp 
 	common/shader.cpp
@@ -58,4 +59,6 @@ ADD_EXECUTABLE( test optimizer.cpp
 	common/objloader.cpp)
 
 TARGET_LINK_LIBRARIES (test ${OpenCV_LIBS} ${ALL_LIBS})
+
+ADD_EXECUTABLE( TrySophus scrap.cpp )
 

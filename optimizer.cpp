@@ -13,6 +13,8 @@
 #include "opencv2/imgproc/imgproc.hpp"
 #include "opencv2/imgcodecs.hpp"
 
+#include <sophus/se3.hpp>
+
 #include <common/objloader.hpp>
 
 using namespace cv;
@@ -163,7 +165,23 @@ void DrawPoint (cv::Mat image, int x , int y ){
 
 }
 
-// Project the 3D point on the opencv image with defined coordinate
+// negate the second and third rows of the matrix. This can be used to convert between opengl and opencv model-pose matrix
+Eigen::Matrix4f CVGLConversion ( Eigen::Matrix4f mat){
+
+    Eigen::Matrix4f out_mat;
+    
+    out_mat = mat;
+    for (int r = 1; r < 3; r++){
+        for (int c = 0; c < 4; c++){
+            out_mat(r,c) = -mat(r,c);
+        }
+    }
+
+    return out_mat;
+
+}
+
+// Project the 3D point on the opencv image with defined coordinate in opengl coordinate
 Eigen::Vector2i ProjectOnCVimage (int width, int height, Eigen::Matrix4f perspective, Eigen::Matrix4f camera_pose, Eigen::Matrix4f model_pose, Eigen::Vector3f vertex){
 
     Eigen::Vector4f vertex_hat = pi3to4f(vertex);
@@ -178,16 +196,140 @@ Eigen::Vector2i ProjectOnCVimage (int width, int height, Eigen::Matrix4f perspec
     return pixel;
 }
 
+// Compute the derivative of the distance map    
+Eigen::MatrixXf dev_dist( Mat image, int image_x, int image_y){
+
+    Eigen::MatrixXf gradient (1,2);
+
+    gradient(0,1) = (float) (image.at<uchar>(image_y, image_x + 1) - image.at<uchar>(image_y, image_x - 1))/2;
+    gradient(0.2) = (float) (image.at<uchar>(image_y + 1, image_x) - image.at<uchar>(image_y - 1, image_x))/2;
+
+    return gradient;
+
+}
+
+// Compute the jacobian matrix of the pi3to2 function
+Eigen::MatrixXf dev_pi3to2(float x, float y, float z){
+
+    Eigen::MatrixXf out_mat(2,3);
+
+    out_mat(0,0) = 1/z;
+    out_mat(0,1) = 0;
+    out_mat(0,2) = -x/(z*z);
+    out_mat(1,0) = 0;
+    out_mat(1,1) = 1/z;
+    out_mat(1,2) = -y/(z*z);
+
+    return out_mat;
+}
+
+// optimizer calss
+// Input: two rotation matrix in opengl frame, one camera intrinsic matrix and 3D silhouette points
+// Output: Jacobian matrix, E0 matrix and delta vector
+class optimizer {
+
+    public:
+    
+        optimizer(vector<Eigen::Vector3f> v_silhouette3d, Eigen::Matrix3f K, Eigen::Matrix4f camera_pose, Eigen::Matrix4f Model, Mat dist)
+            : v_silhouette3d(v_silhouette3d), K(K), camera_pose(camera_pose), Model(Model), dist(dist) {
+
+                this->T = CVGLConversion(this->camera_pose * this->Model);
+
+            }
+
+        Eigen::MatrixXf GetEO(){
+            
+            Eigen::MatrixXf E0(this->v_silhouette3d.size(), 1);
+
+            for (int i = 0; i < this->v_silhouette3d.size(); i++){
+
+                Eigen::Vector3f p = this->v_silhouette3d[i];
+                Eigen::Vector3f p_hat = pi4to3f(this->T * pi3to4f(p));
+                Eigen::Vector2f x = pi3to2f( this->K * p_hat);
+
+                int image_x = FloatRoundToInt(x[0]);
+                int image_y = FloatRoundToInt(x[1]);
+
+                float e0 = (float) this->dist.at<uchar>(image_y, image_x);
+                E0(i,0) = e0;
+            }
+
+            return E0;
+
+        }
+
+        Eigen::MatrixXf GetJ(){
+
+            Eigen::MatrixXf J(this->v_silhouette3d.size(), 6);
+
+            for (int i = 0; i < this->v_silhouette3d.size(); i++){
+
+                Eigen::Vector3f p = this->v_silhouette3d[i];
+                Eigen::Vector3f p_hat = pi4to3f(this->T * pi3to4f(p));
+                Eigen::Vector3f x_hat = this->K * p_hat;
+                Eigen::Vector2f x = pi3to2f( x_hat );
+                int image_x = FloatRoundToInt(x[0]);
+                int image_y = FloatRoundToInt(x[1]);
+
+                Eigen::MatrixXf grad_dist = dev_dist(this->dist, image_x, image_y);
+                Eigen::MatrixXf grad_pi = dev_pi3to2(x_hat[0], x_hat[1], x_hat[2]);
+
+                Eigen::MatrixXf gpK = grad_dist * grad_pi * this->K;
+                Eigen::Vector3f gpKT = gpK.transpose();
+
+                Eigen::Vector3f cross = p_hat.cross(gpKT);
+                Eigen::MatrixXf jacobian(1,6);
+                jacobian << gpK, cross.transpose(); 
+
+                for (int j = 0; j < 6; j++){
+                    J(i,j) = jacobian(0,j);
+                }
+
+            }
+
+            return J;
+        }
+
+        Eigen::MatrixXf GetDelta(){
+
+            Eigen::MatrixXf delta(6,1);
+            Eigen::MatrixXf E0 = GetEO();
+            Eigen::MatrixXf J = GetJ();
+            Eigen::MatrixXf temp = J.transpose()*J; 
+            delta = -temp.inverse()*J.transpose()*E0;
+
+            return delta;
+        }
+
+
+    
+    private:
+
+        vector<Eigen::Vector3f> v_silhouette3d;
+        Eigen::Matrix3f K;
+        Eigen::Matrix4f camera_pose;
+        Eigen::Matrix4f Model;
+        Eigen::Matrix4f T;
+        Mat dist;
+};
+
+
+
+
 
 int main(int argc, char const *argv[])
 {
-    cv::Mat image;
+    cv::Mat image, image2;
 
     std::string path = "/home/xinghui/Find-Silhouette/image.png";
 
     image = cv::imread( path.c_str() );
+    image2 = cv::imread( path.c_str() );
 
     glm::mat4 perspective = glm::perspective(glm::radians(10.0f), 4.0f / 3.0f, 0.1f, 300000.0f);
+    Eigen::Matrix3f K;                            // This is the camera intrinsic matrix if using opencv projection
+    K << 2743.21, 0, 320,0, 2743.21, 240, 0, 0, 1;
+
     glm::mat4 Camera_pose       = glm::lookAt(
 								glm::vec3(0,0,0), // Camera is at (0,0,0), in World Space
 								glm::vec3(0,0,-1), // and looks at the negative direction of the z axis
@@ -202,13 +344,9 @@ int main(int argc, char const *argv[])
 	glm::mat4 ModelT = glm::make_mat4(object_pose);
     glm::mat4 Model = glm::transpose(ModelT);
 
-    glm::mat4 MVP = perspective * Camera_pose * Model;
-
     Eigen::Matrix4f Eigen_perspective = ConvertGlmToEigenMat4f(perspective);
     Eigen::Matrix4f Eigen_Camera_pose = ConvertGlmToEigenMat4f(Camera_pose);
     Eigen::Matrix4f Eigen_Model = ConvertGlmToEigenMat4f(Model);
-
-    // Eigen::Vecto3f vertex (-299.761108, -1790.010132, -1401.049927);
 
     std::vector<glm::vec3> vertices;
     std::vector<glm::vec3> VertexMember;
@@ -230,7 +368,8 @@ int main(int argc, char const *argv[])
     int width = 640;
     int height = 480;
     
-    std::vector<Eigen::Vector2i> v_silhouette;
+    std::vector<Eigen::Vector2i> v_silhouette;     // 2D on the silhouette of the image
+    std::vector<Eigen::Vector3f> v_silhouette3d;   // 3D on the silhouette of the image
 
     for (int i = 0; i < v.size(); i++){
 
@@ -239,6 +378,7 @@ int main(int argc, char const *argv[])
         if (SearchNeighbour(image, pixel[0], pixel[1]) == 1){
 
             v_silhouette.push_back(pixel);
+            v_silhouette3d.push_back(v[i]);
         }
     }
 
@@ -249,9 +389,33 @@ int main(int argc, char const *argv[])
         DrawPoint(image, pixel[0], pixel[1]);
         
     }
+    // imshow("opengl projection", image);
+
+    //-----------------------------Opencv projection--------------------------------------------------------------------------
     
+    // Eigen::Matrix4f T = CVGLConversion(Eigen_Camera_pose * Eigen_Model);
+    
+    // std::cout << K << std::endl;
+    
+    // for (int i=0; i < v.size(); i++){
 
+    //     Eigen::Vector3f vertex = v_silhouette3d[i];
+    //     Eigen::Vector4f vertex_hat = pi3to4f(vertex);
+    //     Eigen::Vector4f projection = T * vertex_hat;
+    //     Eigen::Vector3f X = pi4to3f(projection);
+    //     Eigen::Vector3f x_hat = K*X;
+    
+    
+    //     Eigen::Vector2f x = pi3to2f(x_hat);
+    //     int image_x = FloatRoundToInt(x[0]);
+    //     int image_y = FloatRoundToInt(x[1]);
 
+    //     // std::cout << x << std::endl;  
+    //     DrawPoint(image2, image_x, image_y );
+    // }
+    // imshow("opencv projection", image2);
+    // -----------------------------------------------------------------------------------------------------------------------
+    
     std::string original_path = "/home/xinghui/Find-Silhouette/camera_image.png";
     std::string noise_path = "/home/xinghui/Find-Silhouette/noise.png";
 
@@ -285,24 +449,97 @@ int main(int argc, char const *argv[])
     cv::Mat edge;
     cv::Canny(denoise, edge, 0, 255, 3, true);
     cv::Mat binary;
-    cv::Mat voronoi;
     cv::threshold(edge, binary, 50, 255, cv::THRESH_BINARY_INV);
-
     cv::Mat dist;
     cv::distanceTransform(binary, dist, DIST_L2, DIST_MASK_PRECISE );
     
-    dist *= 100;
+    dist *= 80;
     pow(dist, 0.5, dist);
     Mat dist32s, dist8u1;
     dist.convertTo(dist32s, CV_32S, 1, 0.5);
-    // cout << dist32s << endl;
     dist32s &= Scalar::all(255);
-    // cout << dist32s << endl;
     dist32s.convertTo(dist8u1, CV_8U, 1, 0);
-
-    cv::imshow(" ", dist8u1);
+    imwrite("/home/xinghui/Find-Silhouette/dist.png", dist8u1);
     
-    // Eigen::Affine3f M;
+//---------------------------- start to construct optimization algorithm ------------------------------------
+Eigen::MatrixXf E0(v_silhouette3d.size(), 1);
+Eigen::MatrixXf J(v_silhouette3d.size(),6);
+
+for (int i = 0; i < v_silhouette3d.size(); i++){
+
+    Eigen::Vector3f p = v_silhouette3d[i];
+    Eigen::Vector2i x_dist = ProjectOnCVimage(width, height, Eigen_perspective, Eigen_Camera_pose, Eigen_Model, p); // input of distance transform and its derivative;
+    Eigen::Vector3f x_pi = K * pi4to3f(CVGLConversion(Eigen_Camera_pose * Eigen_Model) * pi3to4f(p)); // input of pi dehomogeneous function
+
+    Eigen::Matrix4f T = CVGLConversion(Eigen_Camera_pose * Eigen_Model);
+    Eigen::MatrixXf grad_dist = dev_dist(dist8u1, x_dist[0], x_dist[1]);
+    Eigen::MatrixXf grad_pi = dev_pi3to2(x_pi[0], x_pi[1], x_pi[2]);
+    Eigen::MatrixXf gpK = grad_dist * grad_pi * K;
+    Eigen::Vector3f gpKT = gpK.transpose();
+
+    Eigen::Vector3f p_hat = pi4to3f(T * pi3to4f(p));
+
+    Eigen::Vector3f cross = p_hat.cross(gpKT);
+    Eigen::MatrixXf jacobian(1,6);
+    jacobian << gpK, cross.transpose(); 
+    
+    float e0 = (float) dist8u1.at<uchar>(x_dist[1], x_dist[0]);
+    
+    E0(i,0) = e0;
+    for (int j=0; j < 6; j++){
+        J(i,j) = jacobian(0,j);
+    }
+
+    if (jacobian(0,0) != jacobian(0,0)){
+        cout << "----------------------------------------" << endl;
+        cout << "p: "<< p << endl;
+        cout << "----------------------------------------" << endl;
+        cout <<  "x_dist: " << x_dist << endl;
+        cout << "----------------------------------------" << endl;
+        cout << "x_pi: " << x_pi << endl;
+        cout << "----------------------------------------" << endl;
+        cout << "grad_dist: " << grad_dist << endl;
+        cout << "----------------------------------------" << endl;
+        cout << "grad_pi: " << grad_pi << endl;
+        cout << "----------------------------------------" << endl;
+        cout << "gpK: " << gpK << endl;
+        cout << "----------------------------------------" << endl;
+        cout << "p_hat: " << p_hat << endl;
+        cout << "----------------------------------------" << endl;
+        cout << "cross: " << cross << endl;
+        cout << "----------------------------------------" << endl;
+        cout << "jacobian: " << jacobian <<endl;
+        cout << "----------------------------------------" << endl;
+        cout << "e0: " << e0 << endl;
+        cout << "----------------------------------------" << endl;
+
+
+    }
+    
+}
+    Eigen::MatrixXf delta(6,1);
+    Eigen::MatrixXf temp = J.transpose()*J;
+    delta = -temp.inverse()*J.transpose()*E0;
+
+    // cout << E0 << endl;
+    cout << "----------------------------" << endl;
+    // cout << J << endl;
+    // cout << "----------------------------" << endl;
+    // cout << temp.determinant() << endl;
+    cout << "----------------------------" << endl;
+    cout << delta << endl;
+
+    optimizer opt(v_silhouette3d, K, Eigen_Camera_pose, Eigen_Model, dist8u1);
+    cout << "----------------------------" << endl;
+    // cout << E1 << endl;
+    // cout << "----------------------------" << endl;
+    // cout << J1 << endl;
+
+    Eigen::MatrixXf delta1 = opt.GetDelta();
+    cout << "----------------------------" << endl;
+    cout << delta1 << endl;
+
+
     // M.matrix() = Eigen_Camera_pose * Eigen_Model;
 
     // Eigen::Vector3f Tw = M.translation();
