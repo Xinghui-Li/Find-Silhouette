@@ -26,6 +26,7 @@ using namespace glm;
 #include <common/shader.hpp>
 #include <common/objloader.hpp>
 
+
 int main( int argc, char *argv[] )
 {
 	
