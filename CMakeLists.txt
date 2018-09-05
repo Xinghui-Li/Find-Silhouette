@@ -47,6 +47,8 @@ ADD_EXECUTABLE( FindSilhouette main.cpp
 	common/shader.hpp
 	common/objloader.hpp
 	common/objloader.cpp
+	tools.hpp
+	tools.cpp
 	
 	SimpleFragmentShader.fragmentshader
 	SimpleVertexShader.vertexshader)

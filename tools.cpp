@@ -1,21 +1,4 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string>
-#include <iostream>
-#include <sstream>  
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
-#include <Eigen/Eigen>
-
-#include "opencv2/core/core.hpp"
-#include "opencv2/highgui/highgui.hpp"
-#include "opencv2/imgproc/imgproc.hpp"
-#include "opencv2/imgcodecs.hpp"
-
-#include <sophus/se3.hpp>
-
-#include <common/objloader.hpp>
+#include <tools.hpp>
 
 using namespace cv;
 using namespace std;
@@ -305,161 +288,75 @@ Eigen::MatrixXf dev_pi3to2(float x, float y, float z){
 // optimizer calss
 // Input: two rotation matrix in opengl frame, one camera intrinsic matrix and 3D silhouette points
 // Output: Jacobian matrix, E0 matrix and delta vector
-class optimizer {
 
-    public:
     
-        optimizer(vector<Eigen::Vector3f> v_silhouette3d, Eigen::Matrix3f K, Eigen::Matrix4f camera_pose, Eigen::Matrix4f Model, Mat dist)
+optimizer::optimizer(vector<Eigen::Vector3f> v_silhouette3d, Eigen::Matrix3f K, Eigen::Matrix4f camera_pose, Eigen::Matrix4f Model, Mat dist)
             : v_silhouette3d(v_silhouette3d), K(K), camera_pose(camera_pose), Model(Model), dist(dist) {
 
                 this->T = CVGLConversion(this->camera_pose * this->Model);
 
             }
 
-        Eigen::MatrixXf GetEO(){
-            
-            Eigen::MatrixXf E0(this->v_silhouette3d.size(), 1);
+Eigen::MatrixXf optimizer::GetEO(){
+    
+    Eigen::MatrixXf E0(this->v_silhouette3d.size(), 1);
 
-            for (int i = 0; i < this->v_silhouette3d.size(); i++){
+    for (int i = 0; i < this->v_silhouette3d.size(); i++){
 
-                Eigen::Vector3f p = this->v_silhouette3d[i];
-                Eigen::Vector3f p_hat = pi4to3f(this->T * pi3to4f(p));
-                Eigen::Vector2f x = pi3to2f( this->K * p_hat);
+        Eigen::Vector3f p = this->v_silhouette3d[i];
+        Eigen::Vector3f p_hat = pi4to3f(this->T * pi3to4f(p));
+        Eigen::Vector2f x = pi3to2f( this->K * p_hat);
 
-                int image_x = FloatRoundToInt(x[0]);
-                int image_y = FloatRoundToInt(x[1]);
+        int image_x = FloatRoundToInt(x[0]);
+        int image_y = FloatRoundToInt(x[1]);
 
-                float e0 = (float) this->dist.at<uchar>(image_y, image_x);
-                E0(i,0) = e0;
-            }
+        float e0 = (float) this->dist.at<uchar>(image_y, image_x);
+        E0(i,0) = e0;
+    }
 
-            return E0;
+    return E0;
 
+}
+
+Eigen::MatrixXf optimizer::GetJ(){
+
+    Eigen::MatrixXf J(this->v_silhouette3d.size(), 6);
+
+    for (int i = 0; i < this->v_silhouette3d.size(); i++){
+
+        Eigen::Vector3f p = this->v_silhouette3d[i];
+        Eigen::Vector3f p_hat = pi4to3f(this->T * pi3to4f(p));
+        Eigen::Vector3f x_hat = this->K * p_hat;
+        Eigen::Vector2f x = pi3to2f( x_hat );
+        int image_x = FloatRoundToInt(x[0]);
+        int image_y = FloatRoundToInt(x[1]);
+
+        Eigen::MatrixXf grad_dist = dev_dist(this->dist, image_x, image_y);
+        Eigen::MatrixXf grad_pi = dev_pi3to2(x_hat[0], x_hat[1], x_hat[2]);
+
+        Eigen::MatrixXf gpK = grad_dist * grad_pi * this->K;
+        Eigen::Vector3f gpKT = gpK.transpose();
+
+        Eigen::Vector3f cross = p_hat.cross(gpKT);
+        Eigen::MatrixXf jacobian(1,6);
+        jacobian << gpK, cross.transpose(); 
+
+        for (int j = 0; j < 6; j++){
+            J(i,j) = jacobian(0,j);
         }
 
-        Eigen::MatrixXf GetJ(){
+    }
 
-            Eigen::MatrixXf J(this->v_silhouette3d.size(), 6);
+    return J;
+}
 
-            for (int i = 0; i < this->v_silhouette3d.size(); i++){
+Eigen::MatrixXf optimizer::GetDelta(){
 
-                Eigen::Vector3f p = this->v_silhouette3d[i];
-                Eigen::Vector3f p_hat = pi4to3f(this->T * pi3to4f(p));
-                Eigen::Vector3f x_hat = this->K * p_hat;
-                Eigen::Vector2f x = pi3to2f( x_hat );
-                int image_x = FloatRoundToInt(x[0]);
-                int image_y = FloatRoundToInt(x[1]);
+    Eigen::MatrixXf delta(6,1);
+    Eigen::MatrixXf E0 = GetEO();
+    Eigen::MatrixXf J = GetJ();
+    Eigen::MatrixXf temp = J.transpose()*J; 
+    delta = -temp.inverse()*J.transpose()*E0;
 
-                Eigen::MatrixXf grad_dist = dev_dist(this->dist, image_x, image_y);
-                Eigen::MatrixXf grad_pi = dev_pi3to2(x_hat[0], x_hat[1], x_hat[2]);
-
-                Eigen::MatrixXf gpK = grad_dist * grad_pi * this->K;
-                Eigen::Vector3f gpKT = gpK.transpose();
-
-                Eigen::Vector3f cross = p_hat.cross(gpKT);
-                Eigen::MatrixXf jacobian(1,6);
-                jacobian << gpK, cross.transpose(); 
-
-                for (int j = 0; j < 6; j++){
-                    J(i,j) = jacobian(0,j);
-                }
-
-            }
-
-            return J;
-        }
-
-        Eigen::MatrixXf GetDelta(){
-
-            Eigen::MatrixXf delta(6,1);
-            Eigen::MatrixXf E0 = GetEO();
-            Eigen::MatrixXf J = GetJ();
-            Eigen::MatrixXf temp = J.transpose()*J; 
-            delta = -temp.inverse()*J.transpose()*E0;
-
-            return delta;
-        }
-
-
-    
-    private:
-
-        vector<Eigen::Vector3f> v_silhouette3d;
-        Eigen::Matrix3f K;
-        Eigen::Matrix4f camera_pose;
-        Eigen::Matrix4f Model;
-        Eigen::Matrix4f T;
-        Mat dist;
-};
-
-
-
-
-
-int main(int argc, char const *argv[])
-{
-    cv::Mat image, image2;
-
-    std::string path = "/home/xinghui/Find-Silhouette/image.png";
-
-    image = cv::imread( path.c_str() );
-    image2 = cv::imread( path.c_str() );
-
-    glm::mat4 perspective = glm::perspective(glm::radians(10.0f), 4.0f / 3.0f, 0.1f, 300000.0f);
-    Eigen::Matrix3f K;                            // This is the camera intrinsic matrix if using opencv projection
-    K << 2743.21, 0, 320,0, 2743.21, 240, 0, 0, 1;
-
-    glm::mat4 Camera_pose       = glm::lookAt(
-								glm::vec3(0,0,0), // Camera is at (0,0,0), in World Space
-								glm::vec3(0,0,-1), // and looks at the negative direction of the z axis
-								glm::vec3(0,1,0)  // Vertical direction is the positive direction
-						   );
-    float object_pose[16] = {
-		0.0f, -1.0f, 0.0f, 0.0f,
-        1.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, 1.0f, -200000.0f,
-        0.0f, 0.0f, 0.0f, 1.0f
-	};
-	glm::mat4 ModelT = glm::make_mat4(object_pose);
-    glm::mat4 Model = glm::transpose(ModelT);
-
-    Eigen::Matrix4f Eigen_perspective = ConvertGlmToEigenMat4f(perspective);
-    Eigen::Matrix4f Eigen_Camera_pose = ConvertGlmToEigenMat4f(Camera_pose);
-    Eigen::Matrix4f Eigen_Model = ConvertGlmToEigenMat4f(Model);
-
-    std::vector<glm::vec3> vertices;
-    std::vector<glm::vec3> VertexMember;
-    std::string Model_Path;
-    Model_Path = "/home/xinghui/Find-Silhouette/satellite_model.obj";
-    bool res = loadOBJ( Model_Path.c_str(), vertices, VertexMember);
-
-    
-    vector<Vector3f> v_silhouette3d = SelectSilhouettePoint(image, Eigen_perspective, Eigen_Camera_pose, Eigen_Model, VertexMember);
-   
-// -----------------------------------------------------------------------------------------------------------------------
-    
-    std::string original_path = "/home/xinghui/Find-Silhouette/camera_image.png";
-    std::string noise_path = "/home/xinghui/Find-Silhouette/noise.png";
-
-    cv::Mat input = cv::imread(original_path.c_str());
-    cv::Mat noise = cv::imread(noise_path.c_str());
-
-
-    Mat distmap = DistanceMap(input, noise);
-    
-//---------------------------- start to construct optimization algorithm ------------------------------------
-
-
-    optimizer opt(v_silhouette3d, K, Eigen_Camera_pose, Eigen_Model, distmap);
-    Eigen::MatrixXf delta = opt.GetDelta();
-    cout << delta << endl;
-    cout << "-------------------------------------------" << endl;
-    Eigen::MatrixXf deltaT = Sophus::SE3f::exp(delta).matrix();
-    cout << deltaT << endl;
-    cvWaitKey(0);
-
-    
-
-
-	return 0;
+    return delta;
 }

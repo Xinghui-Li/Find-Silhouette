@@ -25,10 +25,59 @@ using namespace glm;
 
 #include <common/shader.hpp>
 #include <common/objloader.hpp>
+#include <tools.hpp>
 
+using namespace std;
+using namespace cv;
+using namespace Eigen;
 
 int main( int argc, char *argv[] )
 {
+	//--------------------------- input section ---------------------------
+
+    string original_path = "/home/xinghui/Find-Silhouette/0001.png";
+    string noise_path = "/home/xinghui/Find-Silhouette/noise.png";
+
+    // Intrinsic matrix : 10° Field of View, 4:3 ratio, display range : 0.1 unit <-> 300000 units
+	glm::mat4 perspective = glm::perspective(glm::radians(10.0f), 4.0f / 3.0f, 0.1f, 300000.0f);
+    // This is the camera intrinsic matrix for using opencv projection
+    Eigen::Matrix3f K; K << 2743.21, 0, 320,0, 2743.21, 240, 0, 0, 1;
+	// Camera's pose
+	glm::mat4 Camera_pose       = glm::lookAt(
+								glm::vec3(0,0,0), // Camera is at (0,0,0), in World Space
+								glm::vec3(0,0,-1), // and looks at the negative direction of the z axis
+								glm::vec3(0,1,0)  // Vertical direction is the positive direction
+						   );
+	// estimated nitial position of the satellite
+	float object_pose[16] = {
+		0.0f, -1.0f, 0.0f, 0.0f,
+        1.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, -200000.0f,
+        0.0f, 0.0f, 0.0f, 1.0f
+		};
+		glm::mat4 ModelT = glm::make_mat4(object_pose);
+	    glm::mat4 Model = glm::transpose(ModelT);
+	Matrix4f E_perspective = ConvertGlmToEigenMat4f(perspective);
+	Matrix4f E_Camera_pose = ConvertGlmToEigenMat4f(Camera_pose);
+	Matrix4f E_Model = ConvertGlmToEigenMat4f(Model);
+
+	//Load the satellite model
+    std::vector<glm::vec3> vertices;
+    std::vector<glm::vec3> VertexMember;
+    std::string Model_Path;
+    Model_Path = "/home/xinghui/Find-Silhouette/satellite_model.obj";
+    bool res = loadOBJ( Model_Path.c_str(), vertices, VertexMember);
+    std::cout << "The size of vertices is " << vertices.size() << std:: endl;
+    std::cout << "The size of VertexMember is " << VertexMember.size() << std:: endl;
+
+    // Here is to define the color of the silhouette image
+    std::vector<glm::vec3> color (vertices.size(), glm::vec3(1.0f, 1.0f, 1.0f));
+    std::cout << "The size of color is " << color.size() << std:: endl;
+
+    int width = 640;
+    int height = 480;
+
+    //---------------------------------- start of the algorithm ---------------------------------------
 	
 	// Initialise GLFW
 	if( !glfwInit() )
@@ -47,7 +96,7 @@ int main( int argc, char *argv[] )
 	glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE); // Suppress the pop out of the window. 
 
 	// Open a window and create its OpenGL context
-	window = glfwCreateWindow( 640, 480, "", NULL, NULL);
+	window = glfwCreateWindow( width, height, "", NULL, NULL);
 	if( window == NULL ){
 		fprintf( stderr, "Failed to open GLFW window. If you have an Intel GPU, they are not 3.3 compatible. Try the 2.1 version of the tutorials.\n" );
 		getchar();
@@ -92,48 +141,7 @@ int main( int argc, char *argv[] )
 	// Get a handle for our "MVP" uniform
 	GLuint MatrixID = glGetUniformLocation(programID, "MVP");
 
-	// Intrinsic matrix : 10° Field of View, 4:3 ratio, display range : 0.1 unit <-> 300000 units
-	glm::mat4 perspective = glm::perspective(glm::radians(10.0f), 4.0f / 3.0f, 0.1f, 300000.0f);
-    // Or, for an ortho camera :
-	//glm::mat4 Projection = glm::ortho(-10.0f,10.0f,-10.0f,10.0f,0.0f,100.0f); // In world coordinates
-	
-	// Camera's pose
-	glm::mat4 Camera_pose       = glm::lookAt(
-								glm::vec3(0,0,0), // Camera is at (0,0,0), in World Space
-								glm::vec3(0,0,-1), // and looks at the negative direction of the z axis
-								glm::vec3(0,1,0)  // Vertical direction is the positive direction
-						   );
-
-	// Model's pose 
-    float roll, pitch, yaw;
-
-	float object_pose[16] = {
-		0.0f, -1.0f, 0.0f, 0.0f,
-        1.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, 1.0f, -200000.0f,
-        0.0f, 0.0f, 0.0f, 1.0f
-	};
-	glm::mat4 ModelT = glm::make_mat4(object_pose);
-    glm::mat4 Model = glm::transpose(ModelT);
-
-	// Our ModelViewProjection : multiplication of our 3 matrices
-	glm::mat4 MVP        = perspective * Camera_pose * Model; // Remember, matrix multiplication is the other way around
-
-    //Load the satellite model
-    std::vector<glm::vec3> vertices;
-    std::vector<glm::vec3> VertexMember;
-    std::string Model_Path;
-    Model_Path = "/home/xinghui/Find-Silhouette/satellite_model.obj";
-    bool res = loadOBJ( Model_Path.c_str(), vertices, VertexMember);
-    std::cout << "The size of vertices is " << vertices.size() << std:: endl;
-    std::cout << "The size of VertexMember is " << VertexMember.size() << std:: endl;
-
-    // Here is to define the color of the silhouette image
-    std::vector<glm::vec3> color (vertices.size(), glm::vec3(1.0f, 1.0f, 1.0f));
-    std::cout << "The size of color is " << color.size() << std:: endl;
-    
-
-    // create a new frame buffer so the subsequent operations are regarding to the new buffer frame. 
+	// create a new frame buffer so the subsequent operations are regarding to the new buffer frame. 
     GLuint frameBuffer;
     glGenFramebuffers(1, &frameBuffer);
     glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
@@ -155,15 +163,22 @@ int main( int argc, char *argv[] )
     glGenTextures(1, &texColorBuffer);
     glBindTexture(GL_TEXTURE_2D, texColorBuffer);
 
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 640, 480, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
     glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texColorBuffer, 0 );
 
-	// do{
+    Mat original = imread(original_path.c_str());
+    Mat noise = imread(noise_path.c_str());
 
+    Mat distmap = DistanceMap(original, noise);
+	// do{
+    for (int i = 0; i < 10; i++){
+        
+    	glm::mat4 glmT = Camera_pose * Model;
+		glm::mat4 MVP = perspective * glmT;	
 		// Clear the screen
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -200,15 +215,57 @@ int main( int argc, char *argv[] )
 		glDrawArrays(GL_TRIANGLES, 0, vertices.size()*3); // 3 indices starting at 0 -> 1 triangle
         
         // Save the frame as an 3-channel image
-        int width, height;
-        glfwGetWindowSize(window, &width, &height);
         cv::Mat image(height, width, CV_8UC3);
-        std::string out;
-        out = "/home/xinghui/Find-Silhouette/image.png";
+        // out = "/home/xinghui/Find-Silhouette/image.png";
         glReadPixels(0 ,0 ,width ,height ,GL_RGB ,GL_UNSIGNED_BYTE, image.data);
         cv::flip(image, image, 0);
-        cv::imwrite(out, image);
+        // cv::imwrite(out, image);
+
+        vector<Vector3f> v_silhouette3d = SelectSilhouettePoint (image, E_perspective, E_Camera_pose, E_Model, VertexMember);
+
+        Mat temp;
+        cvtColor(distmap, temp, CV_GRAY2RGB);
+        for (int j = 0; j < v_silhouette3d.size(); j++){
+
+        	Vector3f v = v_silhouette3d[j];
+
+        	Vector2i pixel = ProjectOnCVimage(width, height, E_perspective, E_Camera_pose, E_Model, v);
+        	DrawPoint(temp, pixel[0], pixel[1]);
+		}
+
+		imshow(" ", temp);
         
+        cvWaitKey(500);
+
+        optimizer opt(v_silhouette3d, K, E_Camera_pose, E_Model, distmap);
+	    Eigen::MatrixXf delta = opt.GetDelta();
+	    Eigen::MatrixXf deltaT = Sophus::SE3f::exp(delta).matrix();
+
+        cout << "------------------------------------------------------------------" << endl;
+        cout << " The " << i << " loop" << endl;
+        cout << "------------------------------------------------------------------" << endl;
+        cout << "E_Model is " << endl;
+        cout << E_Model << endl;
+        cout << "------------------------------------------------------------------" << endl;
+        cout << "E_Camera_pose * E_Model is " << endl;
+        cout << E_Camera_pose * E_Model << endl;
+        cout << "------------------------------------------------------------------" << endl;
+        cout << "T is " << endl;
+        cout << CVGLConversion(E_Camera_pose * E_Model) << endl;
+
+        E_Model = CVGLConversion(deltaT * CVGLConversion(E_Model));
+        Model = ConvertEigenMat4fToGlm(E_Model);
+        
+		cout << "------------------------------------------------------------------" << endl;
+        cout << "delta is " << endl;
+        cout << delta << endl;
+        cout << "------------------------------------------------------------------" << endl;
+        cout << "deltaT is " << endl;
+        cout << deltaT << endl;
+        cout << "------------------------------------------------------------------" << endl;
+        
+
+    }  
         // delete the framebuffer
         glDeleteFramebuffers(1, &frameBuffer);
 
@@ -217,17 +274,19 @@ int main( int argc, char *argv[] )
 		// Swap buffers
 		glfwSwapBuffers(window);
 		glfwPollEvents();
+	
 
 	// } // Check if the ESC key was pressed or the window was closed
 	// while( glfwGetKey(window, GLFW_KEY_ESCAPE ) != GLFW_PRESS &&
 	// 	   glfwWindowShouldClose(window) == 0 );
 
-    
-	// Cleanup VBO
+    // Cleanup VBO
 	glDeleteBuffers(1, &vertexbuffer);
 	glDeleteBuffers(1, &colorbuffer);
 	glDeleteVertexArrays(1, &VertexArrayID);
 	glDeleteProgram(programID);
+
+	//-----------------------------------------End of the loop
 
 	// Close OpenGL window and terminate GLFW
 	glfwTerminate();
