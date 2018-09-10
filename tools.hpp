@@ -42,9 +42,9 @@ class optimizer {
     
         optimizer(vector<Eigen::Vector3f> v_silhouette3d, Eigen::Matrix3f K, Eigen::Matrix4f camera_pose, Eigen::Matrix4f Model, Mat dist);
 
-        Eigen::MatrixXf GetEO();
+        Eigen::MatrixXf GetE0();
 
-        Eigen::MatrixXf GetJ();
+        Eigen::MatrixXf GetJ(const MatrixXf& E0);
 
         Eigen::MatrixXf GetDelta();
 

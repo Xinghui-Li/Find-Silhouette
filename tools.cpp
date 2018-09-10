@@ -246,15 +246,26 @@ Mat DistanceMap ( Mat original, Mat noise ){
     threshold(edge, binary, 50, 255, cv::THRESH_BINARY_INV);
     Mat dist;
     distanceTransform(binary, dist, DIST_L2, DIST_MASK_PRECISE );
-    
-    dist *= 80;
     pow(dist, 0.5, dist);
-    Mat dist32s, dist8u1;
-    dist.convertTo(dist32s, CV_32S, 1, 0.5);
-    dist32s &= Scalar::all(255);
-    dist32s.convertTo(dist8u1, CV_8U, 1, 0);
+    dist *=10;
+    // Mat dist2;
+    // distanceTransform(binary, dist2, DIST_WELSCH, DIST_MASK_PRECISE );
+    // Mat dist8u1;
+    // normalize(dist, dist8u1, 0.0, 255, NORM_MINMAX, CV_8UC3);
+    // dist *= 80;
+    // pow(dist, 0.5, dist);
+    // Mat dist32s, dist8u1;
+    // dist.convertTo(dist32s, CV_32S, 1, 0.5);
+    // dist32s &= Scalar::all(255);
+    // dist32s.convertTo(dist8u1, CV_8U, 1, 0);
+  //   Mat distmap = dist2 - dist;
+ 	// for(int c=0; c < distmap.cols; c++){
+  //       for(int r=243; r < 244; r++)
+  //           cout << distmap.at<float>(r,c) << " ";
+  //       // cout << endl;
+  //   }
 
-    return dist8u1;
+    return dist;
 
 }
 
@@ -263,8 +274,8 @@ Eigen::MatrixXf dev_dist( Mat image, int image_x, int image_y){
 
     Eigen::MatrixXf gradient (1,2);
 
-    gradient(0,1) = (float) (image.at<uchar>(image_y, image_x + 1) - image.at<uchar>(image_y, image_x - 1))/2;
-    gradient(0.2) = (float) (image.at<uchar>(image_y + 1, image_x) - image.at<uchar>(image_y - 1, image_x))/2;
+    gradient(0,0) = (float) (image.at<float>(image_y, image_x + 1) - image.at<float>(image_y, image_x - 1))/2.f;
+    gradient(0,1) = (float) (image.at<float>(image_y + 1, image_x) - image.at<float>(image_y - 1, image_x))/2.f;
 
     return gradient;
 
@@ -291,13 +302,11 @@ Eigen::MatrixXf dev_pi3to2(float x, float y, float z){
 
     
 optimizer::optimizer(vector<Eigen::Vector3f> v_silhouette3d, Eigen::Matrix3f K, Eigen::Matrix4f camera_pose, Eigen::Matrix4f Model, Mat dist)
-            : v_silhouette3d(v_silhouette3d), K(K), camera_pose(camera_pose), Model(Model), dist(dist) {
+: v_silhouette3d(v_silhouette3d), K(K), camera_pose(camera_pose), Model(Model), dist(dist) {
+    this->T = CVGLConversion(this->camera_pose * this->Model);
+}
 
-                this->T = CVGLConversion(this->camera_pose * this->Model);
-
-            }
-
-Eigen::MatrixXf optimizer::GetEO(){
+Eigen::MatrixXf optimizer::GetE0(){
     
     Eigen::MatrixXf E0(this->v_silhouette3d.size(), 1);
 
@@ -310,7 +319,7 @@ Eigen::MatrixXf optimizer::GetEO(){
         int image_x = FloatRoundToInt(x[0]);
         int image_y = FloatRoundToInt(x[1]);
 
-        float e0 = (float) this->dist.at<uchar>(image_y, image_x);
+        float e0 = (float) this->dist.at<float>(image_y, image_x);
         E0(i,0) = e0;
     }
 
@@ -318,7 +327,7 @@ Eigen::MatrixXf optimizer::GetEO(){
 
 }
 
-Eigen::MatrixXf optimizer::GetJ(){
+Eigen::MatrixXf optimizer::GetJ(const MatrixXf& E0 ){
 
     Eigen::MatrixXf J(this->v_silhouette3d.size(), 6);
 
@@ -336,10 +345,22 @@ Eigen::MatrixXf optimizer::GetJ(){
 
         Eigen::MatrixXf gpK = grad_dist * grad_pi * this->K;
         Eigen::Vector3f gpKT = gpK.transpose();
-
+        cout << "-----------------------------------------------------------" << endl;
+        cout << "gradient: " << grad_dist << endl;
+        cout << "-----------------------------------------------------------" << endl;
+        cout << "gpK: " << gpK << endl;
+        cout << "-----------------------------------------------------------" << endl;
+        cout << "p_hat: " << p_hat.transpose() << endl;
+        cout << "-----------------------------------------------------------" << endl;
         Eigen::Vector3f cross = p_hat.cross(gpKT);
+        cout << "cross product: " << cross.transpose() << endl;
+        cout << "-----------------------------------------------------------" << endl;
         Eigen::MatrixXf jacobian(1,6);
         jacobian << gpK, cross.transpose(); 
+        cout << "jacobian: "<< jacobian << endl;
+        cout << "-----------------------------------------------------------" << endl;
+        cout << "E(i,0): " << E0(i,0) << endl;
+        cout << "-----------------------------------------------------------" << endl;
 
         for (int j = 0; j < 6; j++){
             J(i,j) = jacobian(0,j);
@@ -353,10 +374,10 @@ Eigen::MatrixXf optimizer::GetJ(){
 Eigen::MatrixXf optimizer::GetDelta(){
 
     Eigen::MatrixXf delta(6,1);
-    Eigen::MatrixXf E0 = GetEO();
-    Eigen::MatrixXf J = GetJ();
+    Eigen::MatrixXf E0 = GetE0();
+    Eigen::MatrixXf J = GetJ(E0);
     Eigen::MatrixXf temp = J.transpose()*J; 
-    delta = -temp.inverse()*J.transpose()*E0;
+    delta = temp.inverse()*J.transpose()*E0;
 
     return delta;
 }

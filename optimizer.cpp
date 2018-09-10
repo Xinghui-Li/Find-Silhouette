@@ -262,16 +262,17 @@ Mat DistanceMap ( Mat original, Mat noise ){
     Mat binary;
     threshold(edge, binary, 50, 255, cv::THRESH_BINARY_INV);
     Mat dist;
-    distanceTransform(binary, dist, DIST_L2, DIST_MASK_PRECISE );
-    
-    dist *= 80;
-    pow(dist, 0.5, dist);
-    Mat dist32s, dist8u1;
-    dist.convertTo(dist32s, CV_32S, 1, 0.5);
-    dist32s &= Scalar::all(255);
-    dist32s.convertTo(dist8u1, CV_8U, 1, 0);
+    distanceTransform(binary, dist, DIST_L1, DIST_MASK_PRECISE );
 
-    return dist8u1;
+    normalize(dist, dist, 0.0, 255, NORM_MINMAX, CV_8UC3);
+    // dist *= 80;
+    // pow(dist, 0.5, dist);
+    // Mat dist32s, dist8u1;
+    // dist.convertTo(dist32s, CV_32S, 1, 0.5);
+    // dist32s &= Scalar::all(255);
+    // dist32s.convertTo(dist8u1, CV_8U, 1, 0);
+
+    return dist;
 
 }
 
@@ -280,8 +281,8 @@ Eigen::MatrixXf dev_dist( Mat image, int image_x, int image_y){
 
     Eigen::MatrixXf gradient (1,2);
 
-    gradient(0,1) = (float) (image.at<uchar>(image_y, image_x + 1) - image.at<uchar>(image_y, image_x - 1))/2;
-    gradient(0.2) = (float) (image.at<uchar>(image_y + 1, image_x) - image.at<uchar>(image_y - 1, image_x))/2;
+    gradient(0,0) = (float) (image.at<uchar>(image_y, image_x + 1) - image.at<uchar>(image_y, image_x - 1))/2;
+    gradient(0,1) = (float) (image.at<uchar>(image_y + 1, image_x) - image.at<uchar>(image_y - 1, image_x))/2;
 
     return gradient;
 
@@ -398,6 +399,8 @@ class optimizer {
 
 int main(int argc, char const *argv[])
 {
+    int width = 640;
+    int height = 480;
     cv::Mat image, image2;
 
     std::string path = "/home/xinghui/Find-Silhouette/image.png";
@@ -423,9 +426,9 @@ int main(int argc, char const *argv[])
 	glm::mat4 ModelT = glm::make_mat4(object_pose);
     glm::mat4 Model = glm::transpose(ModelT);
 
-    Eigen::Matrix4f Eigen_perspective = ConvertGlmToEigenMat4f(perspective);
-    Eigen::Matrix4f Eigen_Camera_pose = ConvertGlmToEigenMat4f(Camera_pose);
-    Eigen::Matrix4f Eigen_Model = ConvertGlmToEigenMat4f(Model);
+    Eigen::Matrix4f E_perspective = ConvertGlmToEigenMat4f(perspective);
+    Eigen::Matrix4f E_Camera_pose = ConvertGlmToEigenMat4f(Camera_pose);
+    Eigen::Matrix4f E_Model = ConvertGlmToEigenMat4f(Model);
 
     std::vector<glm::vec3> vertices;
     std::vector<glm::vec3> VertexMember;
@@ -434,11 +437,11 @@ int main(int argc, char const *argv[])
     bool res = loadOBJ( Model_Path.c_str(), vertices, VertexMember);
 
     
-    vector<Vector3f> v_silhouette3d = SelectSilhouettePoint(image, Eigen_perspective, Eigen_Camera_pose, Eigen_Model, VertexMember);
+    vector<Vector3f> v_silhouette3d = SelectSilhouettePoint(image, E_perspective, E_Camera_pose, E_Model, VertexMember);
    
 // -----------------------------------------------------------------------------------------------------------------------
     
-    std::string original_path = "/home/xinghui/Find-Silhouette/camera_image.png";
+    std::string original_path = "/home/xinghui/Find-Silhouette/0001.png";
     std::string noise_path = "/home/xinghui/Find-Silhouette/noise.png";
 
     cv::Mat input = cv::imread(original_path.c_str());
@@ -448,9 +451,23 @@ int main(int argc, char const *argv[])
     Mat distmap = DistanceMap(input, noise);
     
 //---------------------------- start to construct optimization algorithm ------------------------------------
+        Mat temp;
+        cvtColor(distmap, temp, CV_GRAY2RGB);
+        cout << temp.channels() << endl;
+        for (int j = 0; j < v_silhouette3d.size(); j++){
 
+            Vector3f v = v_silhouette3d[j];
 
-    optimizer opt(v_silhouette3d, K, Eigen_Camera_pose, Eigen_Model, distmap);
+            Vector2i pixel = ProjectOnCVimage(width, height, E_perspective, E_Camera_pose, E_Model, v);
+            DrawPoint(temp, pixel[0], pixel[1]);
+        }
+        // imshow("temp", temp);
+        // imshow("distmap", distmap);
+
+    
+    cout << dev_dist(distmap, 320, 240) << endl;
+
+    optimizer opt(v_silhouette3d, K, E_Camera_pose, E_Model, distmap);
     Eigen::MatrixXf delta = opt.GetDelta();
     cout << delta << endl;
     cout << "-------------------------------------------" << endl;

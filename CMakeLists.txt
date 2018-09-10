@@ -42,7 +42,7 @@ include_directories(${OpenCV_INCLUDE_DIRS})
 
 find_package(Sophus)
 
-ADD_EXECUTABLE( FindSilhouette main.cpp 
+ADD_EXECUTABLE( main main.cpp 
 	common/shader.cpp
 	common/shader.hpp
 	common/objloader.hpp
@@ -54,7 +54,7 @@ ADD_EXECUTABLE( FindSilhouette main.cpp
 	SimpleVertexShader.vertexshader)
 
 
-TARGET_LINK_LIBRARIES (FindSilhouette ${OpenCV_LIBS} ${ALL_LIBS})
+TARGET_LINK_LIBRARIES (main ${OpenCV_LIBS} ${ALL_LIBS})
 
 ADD_EXECUTABLE( test optimizer.cpp
 	common/objloader.hpp
