@@ -26,9 +26,16 @@ int main() {
         cout << transform.translation() << endl;
 
         Eigen::Vector3d X(0,0,1);
-        cout << "transform " << transform.matrix() << endl;
+        cout << "transform \n" << transform.matrix() << endl;
+        cout << "delta \n" << transform.log() << endl;
         cout << transform*X << endl;
     }
+
+        Eigen::Matrix<double, 4,4> test;
+        test << 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16;
+        cout << test << endl;
+        cout << test.block<3,3>(0,0)<< endl;
+        cout << test.block<3,1>(0,3)<< endl;
 
     return 0;
 }

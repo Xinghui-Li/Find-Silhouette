@@ -87,6 +87,10 @@ int main( int argc, char *argv[] )
     int width = 640;
     int height = 480;
 
+    // parameter used by LM algorithm
+    float lambda = 1;
+    float nu = 1.4;
+
     //---------------------------------- start of the algorithm ---------------------------------------
     
     // Initialise GLFW
@@ -127,7 +131,7 @@ int main( int argc, char *argv[] )
     // Ensure we can capture the escape key being pressed below
     glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_TRUE);
 
-    // Dark blue background
+    // Black background
     glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
     // Enable depth test
@@ -264,12 +268,38 @@ int main( int argc, char *argv[] )
         }
 
         imshow(" ", temp);
-        
-        
+        imwrite("/home/xinghui/Find-Silhouette/projected.png", temp);
 
         optimizer opt(v_silhouette3d, K, E_Camera_pose, E_Model, distmap);
-        Eigen::MatrixXf delta = opt.GetDelta()*-0.1;
-        Eigen::MatrixXf deltaT = Sophus::SE3f::exp(delta).matrix();
+        Eigen::VectorXf dev = opt.GetDev().transpose();
+        
+        cout << "Current derivative is \n" << dev << " \n" << endl;
+
+        Matrix3f rot = opt.GetT().block<3,3>(0,0);
+        MatrixXf trans = opt.GetT().block<3,1>(0,3);
+        Sophus::SE3f transform(rot, trans);
+
+        cout << "Current T is \n" << transform.matrix() << " \n" << endl;
+
+        VectorXf delta = transform.log(); 
+
+        cout << "Current se3 vector is \n" << delta << " \n"<< endl;
+        
+        VectorXf phi(6);
+        phi << 0,0,0.01,0,0,0;
+
+        VectorXf product = phi.cwiseProduct(delta);
+        delta = delta-product;
+
+        Sophus::SE3f after_transform = Sophus::SE3f::exp(delta);
+
+        MatrixXf new_model = after_transform.matrix();
+        cout << "New T is \n" << new_model << " \n"<< endl;
+
+
+
+        // Eigen::MatrixXf deltaT = Sophus::SE3f::exp(dev).matrix();
+
 
   //       cout << "------------------------------------------------------------------" << endl;
   //       // cout << " The " << i << " loop" << endl;
@@ -318,13 +348,13 @@ int main( int argc, char *argv[] )
         // cout << pixelx << " " << pixely << endl;
         // cout << temp2.channels() << endl;
         // DrawPoint(temp2, pixelx, pixely);
-        imshow("temp", temp);
+
         // imshow("temp2", temp2);
 
 
 
 
-        E_Model = CVGLConversion(deltaT * CVGLConversion(E_Model));
+        E_Model = CVGLConversion(new_model);
         Model = ConvertEigenMat4fToGlm(E_Model);
 
 

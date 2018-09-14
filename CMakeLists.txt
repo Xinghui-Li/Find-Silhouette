@@ -62,5 +62,5 @@ ADD_EXECUTABLE( test optimizer.cpp
 
 TARGET_LINK_LIBRARIES (test ${OpenCV_LIBS} ${ALL_LIBS})
 
-ADD_EXECUTABLE( TrySophus scrap.cpp )
+ADD_EXECUTABLE( scrap scrap.cpp )
 

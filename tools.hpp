@@ -44,9 +44,16 @@ class optimizer {
 
         Eigen::MatrixXf GetE0();
 
-        Eigen::MatrixXf GetJ(const MatrixXf& E0);
+        Eigen::MatrixXf GetJ();
 
         Eigen::MatrixXf GetDelta();
+
+        Eigen::Matrix4f GetT();
+
+        Eigen::MatrixXf LMalgorithm(float lambda);
+
+        Eigen::MatrixXf GetDev();
+
 
 
     
@@ -59,3 +66,4 @@ class optimizer {
         Eigen::Matrix4f T;
         Mat dist;
 };
+

@@ -327,7 +327,8 @@ Eigen::MatrixXf optimizer::GetE0(){
 
 }
 
-Eigen::MatrixXf optimizer::GetJ(const MatrixXf& E0 ){
+
+Eigen::MatrixXf optimizer::GetJ(){
 
     Eigen::MatrixXf J(this->v_silhouette3d.size(), 6);
 
@@ -345,22 +346,22 @@ Eigen::MatrixXf optimizer::GetJ(const MatrixXf& E0 ){
 
         Eigen::MatrixXf gpK = grad_dist * grad_pi * this->K;
         Eigen::Vector3f gpKT = gpK.transpose();
-        cout << "-----------------------------------------------------------" << endl;
-        cout << "gradient: " << grad_dist << endl;
-        cout << "-----------------------------------------------------------" << endl;
-        cout << "gpK: " << gpK << endl;
-        cout << "-----------------------------------------------------------" << endl;
-        cout << "p_hat: " << p_hat.transpose() << endl;
-        cout << "-----------------------------------------------------------" << endl;
+        // cout << "-----------------------------------------------------------" << endl;
+        // cout << "gradient: " << grad_dist << endl;
+        // cout << "-----------------------------------------------------------" << endl;
+        // cout << "gpK: " << gpK << endl;
+        // cout << "-----------------------------------------------------------" << endl;
+        // cout << "p_hat: " << p_hat.transpose() << endl;
+        // cout << "-----------------------------------------------------------" << endl;
         Eigen::Vector3f cross = p_hat.cross(gpKT);
-        cout << "cross product: " << cross.transpose() << endl;
-        cout << "-----------------------------------------------------------" << endl;
+        // cout << "cross product: " << cross.transpose() << endl;
+        // cout << "-----------------------------------------------------------" << endl;
         Eigen::MatrixXf jacobian(1,6);
         jacobian << gpK, cross.transpose(); 
-        cout << "jacobian: "<< jacobian << endl;
-        cout << "-----------------------------------------------------------" << endl;
-        cout << "E(i,0): " << E0(i,0) << endl;
-        cout << "-----------------------------------------------------------" << endl;
+        // cout << "jacobian: "<< jacobian << endl;
+        // cout << "-----------------------------------------------------------" << endl;
+        // cout << "E(i,0): " << E0(i,0) << endl;
+        // cout << "-----------------------------------------------------------" << endl;
 
         for (int j = 0; j < 6; j++){
             J(i,j) = jacobian(0,j);
@@ -375,9 +376,62 @@ Eigen::MatrixXf optimizer::GetDelta(){
 
     Eigen::MatrixXf delta(6,1);
     Eigen::MatrixXf E0 = GetE0();
-    Eigen::MatrixXf J = GetJ(E0);
+    Eigen::MatrixXf J = GetJ();
     Eigen::MatrixXf temp = J.transpose()*J; 
     delta = temp.inverse()*J.transpose()*E0;
 
     return delta;
+}
+
+Eigen::MatrixXf optimizer::GetDev(){
+
+    MatrixXf dev(1,6); 
+    dev = MatrixXf::Zero(1,6);
+
+    for (int i = 0; i < this->v_silhouette3d.size(); i++){
+
+        Eigen::Vector3f p = this->v_silhouette3d[i];
+        Eigen::Vector3f p_hat = pi4to3f(this->T * pi3to4f(p));
+        Eigen::Vector3f x_hat = this->K * p_hat;
+        Eigen::Vector2f x = pi3to2f( x_hat );
+        int image_x = FloatRoundToInt(x[0]);
+        int image_y = FloatRoundToInt(x[1]);
+
+        Eigen::MatrixXf grad_dist = dev_dist(this->dist, image_x, image_y);
+        Eigen::MatrixXf grad_pi = dev_pi3to2(x_hat[0], x_hat[1], x_hat[2]);
+
+        Eigen::MatrixXf gpK = grad_dist * grad_pi * this->K;
+
+        MatrixXf T_dev(3,6);
+        float X = p[0];
+        float Y = p[1];
+        float Z = p[2];
+        T_dev << 1,0,0,0,4*Z,-4*Y,0,1,0,-4*Z,0,4*X,0,0,1,4*Y,-4*X,0;
+
+        dev += gpK * T_dev;
+    }
+
+    return dev;
+
+}
+
+Eigen::Matrix4f optimizer::GetT(){
+
+    return this->T;
+
+}
+
+Eigen::MatrixXf optimizer::LMalgorithm( float lambda ){
+
+    MatrixXf J = GetJ();
+    MatrixXf E = GetE0();
+
+    MatrixXf J_squared = J.transpose()*J;
+    VectorXf diagonal = J_squared.diagonal();
+
+    MatrixXf J_diagonal = diagonal.asDiagonal();
+
+    MatrixXf delta_lambda = -(J_squared + lambda*J_diagonal).inverse() * (J.transpose() * E);
+    
+    return delta_lambda;
 }
