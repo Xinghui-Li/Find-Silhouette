@@ -1,0 +1,12 @@
+# Blender MTL File: 'finished panel_four sides.blend'
+# Material Count: 1
+
+newmtl Shape
+Ns 500.000000
+Ka 0.200000 0.200000 0.200000
+Kd 0.720000 0.720000 0.720000
+Ks 0.050000 0.050000 0.050000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2

@@ -54,6 +54,8 @@ class optimizer {
 
         Eigen::MatrixXf GetDev();
 
+        void Draw( Mat image );
+
 
 
     

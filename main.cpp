@@ -255,9 +255,10 @@ int main( int argc, char *argv[] )
 
         vector<Vector3f> v_silhouette3d = SelectSilhouettePoint (image, E_perspective, E_Camera_pose, E_Model, VertexMember);
 
-        Mat temp;
+        Mat temp, temp2;
         cvtColor(dist8u1, temp, CV_GRAY2RGB);
-        imwrite("dist.png", dist8u1);
+        // imwrite("dist.png", dist8u1);
+        temp.copyTo(temp2);
 
         for (int j = 0; j < v_silhouette3d.size(); j++){
 
@@ -267,33 +268,50 @@ int main( int argc, char *argv[] )
             DrawPoint(temp, pixel[0], pixel[1]);
         }
 
-        imshow(" ", temp);
-        imwrite("/home/xinghui/Find-Silhouette/projected.png", temp);
+        imshow(" OpenGL ", temp);
+        // imwrite("/home/xinghui/Find-Silhouette/projected.png", temp);
 
         optimizer opt(v_silhouette3d, K, E_Camera_pose, E_Model, distmap);
+        opt.Draw(temp2);
+        imshow(" OpenCV ", temp2);
         Eigen::VectorXf dev = opt.GetDev().transpose();
         
         cout << "Current derivative is \n" << dev << " \n" << endl;
 
         Matrix3f rot = opt.GetT().block<3,3>(0,0);
-        MatrixXf trans = opt.GetT().block<3,1>(0,3);
-        Sophus::SE3f transform(rot, trans);
+        VectorXf trans = opt.GetT().block<3,1>(0,3);
+        Sophus::SO3f rotation(rot);
 
-        cout << "Current T is \n" << transform.matrix() << " \n" << endl;
+        cout << "Current rotation matrix is \n" << rotation.matrix() << " \n" << endl;
 
-        VectorXf delta = transform.log(); 
+        VectorXf rot_delta = rotation.log(); 
+        VectorXf delta(6);
+        delta << trans, rot_delta;
 
-        cout << "Current se3 vector is \n" << delta << " \n"<< endl;
+        cout << "Current Rodrigues vector is \n" << delta << " \n"<< endl;
         
         VectorXf phi(6);
-        phi << 0,0,0.01,0,0,0;
+        phi << 30,0,0,0,0,0;
 
-        VectorXf product = phi.cwiseProduct(delta);
+        VectorXf product = phi.cwiseProduct(dev);
+        cout << "Current product of scaling vector and derivative is \n" << product << " \n" << endl;
         delta = delta-product;
 
-        Sophus::SE3f after_transform = Sophus::SE3f::exp(delta);
+        VectorXf after_trans = delta.head(3);
+        VectorXf after_rot = delta.tail(3);
 
-        MatrixXf new_model = after_transform.matrix();
+        MatrixXf new_model(4,4);
+        Sophus::SO3f r = Sophus::SO3f::exp(after_rot);
+        new_model.block<3,3>(0,0) = r.matrix();
+        new_model.block<3,1>(0,3) = after_trans;
+        MatrixXf last_row(1,4);
+        last_row << 0,0,0,1;
+        new_model.block<1,4>(3,0) = last_row;
+
+
+        // Sophus::SE3f after_transform = Sophus::SE3f::exp(delta);
+
+        // MatrixXf new_model = after_transform.matrix();
         cout << "New T is \n" << new_model << " \n"<< endl;
 
 

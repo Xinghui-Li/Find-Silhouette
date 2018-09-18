@@ -435,3 +435,20 @@ Eigen::MatrixXf optimizer::LMalgorithm( float lambda ){
     
     return delta_lambda;
 }
+
+void optimizer::Draw( Mat image ){
+
+    for ( int i = 0; i < this -> v_silhouette3d.size(); i ++){
+
+        Eigen::Vector3f p = this->v_silhouette3d[i];
+        Eigen::Vector3f p_hat = pi4to3f(this->T * pi3to4f(p));
+        Eigen::Vector3f x_hat = this->K * p_hat;
+        Eigen::Vector2f x = pi3to2f( x_hat );
+        int image_x = FloatRoundToInt(x[0]);
+        int image_y = FloatRoundToInt(x[1]);
+
+        DrawPoint(image, image_x, image_y);
+
+    }
+
+}

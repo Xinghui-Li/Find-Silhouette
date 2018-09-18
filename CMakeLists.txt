@@ -16,25 +16,25 @@ find_package(OpenGL REQUIRED)
 add_subdirectory (external)
 
 include_directories(
-	external/glfw-3.2.1/include/
-	external/glm-0.9.9.0/
-	external/glew-1.13.0/include/
-	/usr/local/include/eigen3/
-	.
+    external/glfw-3.2.1/include/
+    external/glm-0.9.9.0/
+    external/glew-1.13.0/include/
+    /usr/local/include/eigen3/
+    .
 )
 
 set(ALL_LIBS
-	${OPENGL_LIBRARY}
-	glfw
-	GLEW_1130
+    ${OPENGL_LIBRARY}
+    glfw
+    GLEW_1130
 )
 
 add_definitions(
-	-DTW_STATIC
-	-DTW_NO_LIB_PRAGMA
-	-DTW_NO_DIRECT3D
-	-DGLEW_STATIC
-	-D_CRT_SECURE_NO_WARNINGS
+    -DTW_STATIC
+    -DTW_NO_LIB_PRAGMA
+    -DTW_NO_DIRECT3D
+    -DGLEW_STATIC
+    -D_CRT_SECURE_NO_WARNINGS
 )
 
 find_package(OpenCV REQUIRED )
@@ -43,24 +43,30 @@ include_directories(${OpenCV_INCLUDE_DIRS})
 find_package(Sophus)
 
 ADD_EXECUTABLE( main main.cpp 
-	common/shader.cpp
-	common/shader.hpp
-	common/objloader.hpp
-	common/objloader.cpp
-	tools.hpp
-	tools.cpp
-	
-	SimpleFragmentShader.fragmentshader
-	SimpleVertexShader.vertexshader)
+    common/shader.cpp
+    common/shader.hpp
+    common/objloader.hpp
+    common/objloader.cpp
+    tools.hpp
+    tools.cpp
+    
+    SimpleFragmentShader.fragmentshader
+    SimpleVertexShader.vertexshader)
 
 
 TARGET_LINK_LIBRARIES (main ${OpenCV_LIBS} ${ALL_LIBS})
 
 ADD_EXECUTABLE( test optimizer.cpp
-	common/objloader.hpp
-	common/objloader.cpp)
+    common/objloader.hpp
+    common/objloader.cpp)
 
 TARGET_LINK_LIBRARIES (test ${OpenCV_LIBS} ${ALL_LIBS})
 
-ADD_EXECUTABLE( scrap scrap.cpp )
+ADD_EXECUTABLE( scrap scrap.cpp
+                common/objloader.hpp
+                common/objloader.cpp
+                tools.hpp
+                tools.cpp)
+
+TARGET_LINK_LIBRARIES (scrap ${OpenCV_LIBS} ${ALL_LIBS})
 
