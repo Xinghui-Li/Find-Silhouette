@@ -1,13 +1,14 @@
 #include <tools.hpp>
+#include <iomanip>
 
 using namespace cv;
 using namespace std;
 using namespace Eigen;
 
-// Convert glm vec3 to eigen vector3f
-Eigen::Vector3f ConvertGlmToEigen3f( glm::vec3 v ) {
+// Convert glm vec3 to eigen Vector3d
+Eigen::Vector3d ConvertGlmToEigen3f( glm::vec3 v ) {
     
-    Eigen::Vector3f out_v;
+    Eigen::Vector3d out_v;
     
     out_v[0] = v.x;
     out_v[1] = v.y;
@@ -17,10 +18,10 @@ Eigen::Vector3f ConvertGlmToEigen3f( glm::vec3 v ) {
 
 }
 
-// Convert glm mat4 to eigen matrix4f
-Eigen::Matrix4f ConvertGlmToEigenMat4f ( glm::mat4 mat ) {
+// Convert glm mat4 to eigen Matrix4d
+Eigen::Matrix4d ConvertGlmToEigenMat4f ( glm::mat4 mat ) {
     
-    Eigen::Matrix4f out_mat;
+    Eigen::Matrix4d out_mat;
 
     for ( int i = 0; i < 4; i++){
         for (int j = 0; j < 4; j++){
@@ -32,8 +33,8 @@ Eigen::Matrix4f ConvertGlmToEigenMat4f ( glm::mat4 mat ) {
 
 }
 
-// Convert Eigen Matrix4f to glm mat4
-glm::mat4 ConvertEigenMat4fToGlm (Eigen::Matrix4f mat){
+// Convert Eigen Matrix4d to glm mat4
+glm::mat4 ConvertEigenMat4fToGlm (Eigen::Matrix4d mat){
     
     glm::mat4 out_mat;
 
@@ -48,9 +49,9 @@ glm::mat4 ConvertEigenMat4fToGlm (Eigen::Matrix4f mat){
 }
 
 // Dehomogeneous the vector from 4 element down to 3.
-Eigen::Vector3f pi4to3f ( Eigen::Vector4f v ) {
+Eigen::Vector3d pi4to3f ( Eigen::Vector4d v ) {
     
-    Eigen::Vector3f out_v;
+    Eigen::Vector3d out_v;
 
     out_v[0] = v[0]/v[3];
     out_v[1] = v[1]/v[3];
@@ -61,9 +62,9 @@ Eigen::Vector3f pi4to3f ( Eigen::Vector4f v ) {
 }
 
 // Dehomogeneous the vector from 3 element down to 2.
-Eigen::Vector2f pi3to2f ( Eigen::Vector3f v ) {
+Eigen::Vector2d pi3to2f ( Eigen::Vector3d v ) {
     
-    Eigen::Vector2f out_v;
+    Eigen::Vector2d out_v;
 
     out_v[0] = v[0]/v[2];
     out_v[1] = v[1]/v[2];
@@ -73,9 +74,9 @@ Eigen::Vector2f pi3to2f ( Eigen::Vector3f v ) {
 }
 
 // convert a 3D vector to homogeneous vector. 
-Eigen::Vector4f pi3to4f ( Eigen::Vector3f v ) {
+Eigen::Vector4d pi3to4f ( Eigen::Vector3d v ) {
     
-    Eigen::Vector4f out_v;
+    Eigen::Vector4d out_v;
 
     out_v[0] = v[0];
     out_v[1] = v[1];
@@ -85,6 +86,36 @@ Eigen::Vector4f pi3to4f ( Eigen::Vector3f v ) {
     return out_v; 
 
 }
+
+Matrix4d pseudo_exp( VectorXd delta ){
+
+    VectorXd after_trans = delta.head(3);
+    VectorXd after_rot = delta.tail(3);
+
+    Matrix4d new_model = Matrix4d::Identity();
+    Sophus::SO3d r = Sophus::SO3d::exp(after_rot);
+    new_model.block<3,3>(0,0) = r.matrix();
+    new_model.block<3,1>(0,3) = after_trans;
+
+    return new_model;
+
+}
+
+VectorXd pseudo_log( const Matrix4d& transform){
+
+    Matrix3d rot = transform.block<3,3>(0,0);
+    VectorXd trans = transform.block<3,1>(0,3);
+    Sophus::SO3d rotation(rot);
+
+    cout << "Current rotation matrix is \n" << rotation.matrix() << " \n" << endl;
+
+    VectorXd rot_delta = rotation.log(); 
+    VectorXd delta(6);
+    delta << trans, rot_delta;
+
+    return delta;
+
+} 
 
 // Convert float tp integer based on rounding up if decimals > 0.5 and rounding down if decimals < 0.5
 int FloatRoundToInt(float a){
@@ -165,9 +196,9 @@ void DrawPoint (cv::Mat image, int x , int y ){
 }
 
 // negate the second and third rows of the matrix. This can be used to convert between opengl and opencv model-pose matrix
-Eigen::Matrix4f CVGLConversion ( Eigen::Matrix4f mat ){
+Eigen::Matrix4d CVGLConversion ( Eigen::Matrix4d mat ){
 
-    Eigen::Matrix4f out_mat;
+    Eigen::Matrix4d out_mat;
     
     out_mat = mat;
     for (int r = 1; r < 3; r++){
@@ -181,12 +212,12 @@ Eigen::Matrix4f CVGLConversion ( Eigen::Matrix4f mat ){
 }
 
 // Project the 3D point on the opencv image with defined coordinate in opengl coordinate
-Eigen::Vector2i ProjectOnCVimage (int width, int height, Eigen::Matrix4f perspective, Eigen::Matrix4f camera_pose, Eigen::Matrix4f model_pose, Eigen::Vector3f vertex){
+Eigen::Vector2i ProjectOnCVimage (int width, int height, Eigen::Matrix4d perspective, Eigen::Matrix4d camera_pose, Eigen::Matrix4d model_pose, Eigen::Vector3d vertex){
 
-    Eigen::Vector4f vertex_hat = pi3to4f(vertex);
+    Eigen::Vector4d vertex_hat = pi3to4f(vertex);
 
-    Eigen::Vector4f projection = perspective * camera_pose * model_pose * vertex_hat;
-    Eigen::Vector3f x_hat = pi4to3f(projection);
+    Eigen::Vector4d projection = perspective * camera_pose * model_pose * vertex_hat;
+    Eigen::Vector3d x_hat = pi4to3f(projection);
         
     Eigen::Vector2i pixel;    
     pixel[0] = FloatRoundToInt(x_hat[0]*width*0.5+width*0.5);
@@ -196,15 +227,15 @@ Eigen::Vector2i ProjectOnCVimage (int width, int height, Eigen::Matrix4f perspec
 }
 
 // Select 3D point on the silhouette of the image
-vector<Vector3f> SelectSilhouettePoint (Mat image, Matrix4f perspective, Matrix4f camera_pose, Matrix4f model_pose, vector<glm::vec3> vertex){
+vector<Vector3d> SelectSilhouettePoint (Mat image, Matrix4d perspective, Matrix4d camera_pose, Matrix4d model_pose, vector<glm::vec3> vertex){
 
-    vector<Vector3f> v_silhouette3d;
+    vector<Vector3d> v_silhouette3d;
     int width = image.cols;
     int height = image.rows;
     
     for (int i = 0; i < vertex.size(); ++i){
 
-        Vector3f v = ConvertGlmToEigen3f(vertex[i]);
+        Vector3d v = ConvertGlmToEigen3f(vertex[i]);
 
         Eigen::Vector2i pixel = ProjectOnCVimage(width, height, perspective, camera_pose, model_pose, v);
 
@@ -270,9 +301,9 @@ Mat DistanceMap ( Mat original, Mat noise ){
 }
 
 // Compute the derivative of the distance map    
-Eigen::MatrixXf dev_dist( Mat image, int image_x, int image_y){
+Eigen::MatrixXd dev_dist( Mat image, int image_x, int image_y){
 
-    Eigen::MatrixXf gradient (1,2);
+    Eigen::MatrixXd gradient (1,2);
 
     gradient(0,0) = (float) (image.at<float>(image_y, image_x + 1) - image.at<float>(image_y, image_x - 1))/2.f;
     gradient(0,1) = (float) (image.at<float>(image_y + 1, image_x) - image.at<float>(image_y - 1, image_x))/2.f;
@@ -281,10 +312,22 @@ Eigen::MatrixXf dev_dist( Mat image, int image_x, int image_y){
 
 }
 
-// Compute the jacobian matrix of the pi3to2 function
-Eigen::MatrixXf dev_pi3to2(float x, float y, float z){
+Eigen::MatrixXd dev_dist_float( Mat image, float image_x, float image_y){
 
-    Eigen::MatrixXf out_mat(2,3);
+    Eigen::MatrixXd gradient (1,2);
+
+    gradient(0,0) = (float) (bilinearInterpolate<float>(image, image_x+1, image_y) - bilinearInterpolate<float>(image, image_x-1, image_y))/2.f;
+    gradient(0,1) = (float) (bilinearInterpolate<float>(image, image_x, image_y+1) - bilinearInterpolate<float>(image, image_x, image_y+1))/2.f;
+
+    return gradient;
+
+}
+
+
+// Compute the jacobian matrix of the pi3to2 function
+Eigen::MatrixXd dev_pi3to2(float x, float y, float z){
+
+    Eigen::MatrixXd out_mat(2,3);
 
     out_mat(0,0) = 1/z;
     out_mat(0,1) = 0;
@@ -296,31 +339,76 @@ Eigen::MatrixXf dev_pi3to2(float x, float y, float z){
     return out_mat;
 }
 
+
+double Area (triangle tri){
+    
+    Vector3d a = tri.vertex1;
+    Vector3d b = tri.vertex2;
+    Vector3d c = tri.vertex3;
+
+    Vector3d ab = a-b;
+    Vector3d ac = a-c;
+    
+    double theta = acos(ab.dot(ac)/(ab.norm()* ac.norm()));
+    
+    double area = 0.5 * ab.norm() * ac.norm() * sin(theta);
+
+
+    return area;
+}
+
+vector<int> indexSort( vector<double> x ){
+
+    vector<int> index;
+
+    index.resize(x.size());
+    std::size_t n(0);
+    std::generate(std::begin(index), std::end(index), [&]{ return n++; });
+
+    std::sort(  std::begin(index), 
+                std::end(index),
+                [&](int i1, int i2) { return x[i1] < x[i2]; } );
+
+    return index;
+
+}
+
 // optimizer calss
 // Input: two rotation matrix in opengl frame, one camera intrinsic matrix and 3D silhouette points
 // Output: Jacobian matrix, E0 matrix and delta vector
 
     
-optimizer::optimizer(vector<Eigen::Vector3f> v_silhouette3d, Eigen::Matrix3f K, Eigen::Matrix4f camera_pose, Eigen::Matrix4f Model, Mat dist)
+optimizer::optimizer(vector<Eigen::Vector3d> v_silhouette3d, Eigen::Matrix3d K, Eigen::Matrix4d camera_pose, Eigen::Matrix4d Model, Mat dist)
 : v_silhouette3d(v_silhouette3d), K(K), camera_pose(camera_pose), Model(Model), dist(dist) {
     this->T = CVGLConversion(this->camera_pose * this->Model);
+    // cout << std::setprecision(30) << this->T << endl;
 }
 
-Eigen::MatrixXf optimizer::GetE0(){
+Eigen::MatrixXd optimizer::GetE0(){
     
-    Eigen::MatrixXf E0(this->v_silhouette3d.size(), 1);
+    Eigen::MatrixXd E0(this->v_silhouette3d.size(), 1);
 
     for (int i = 0; i < this->v_silhouette3d.size(); i++){
 
-        Eigen::Vector3f p = this->v_silhouette3d[i];
-        Eigen::Vector3f p_hat = pi4to3f(this->T * pi3to4f(p));
-        Eigen::Vector2f x = pi3to2f( this->K * p_hat);
+        Eigen::Vector3d p = this->v_silhouette3d[i];
+        Eigen::Vector3d p_hat = pi4to3f(this->T * pi3to4f(p));
+        Eigen::Vector2d x = pi3to2f( this->K * p_hat);
 
-        int image_x = FloatRoundToInt(x[0]);
-        int image_y = FloatRoundToInt(x[1]);
+        if(false){
+            int image_x = FloatRoundToInt(x[0]);
+            int image_y = FloatRoundToInt(x[1]);
 
-        float e0 = (float) this->dist.at<float>(image_y, image_x);
-        E0(i,0) = e0;
+            float e0 = (float) this->dist.at<float>(image_y, image_x);
+            E0(i,0) = e0;    
+        }
+        else{
+            double image_x = x[0];
+            double image_y = x[1];
+
+            // cout << "x = " << x << endl;
+            double e0 = bilinearInterpolate<double>(this->dist, image_x, image_y);
+            E0(i,0) = e0;    
+        }
     }
 
     return E0;
@@ -328,24 +416,28 @@ Eigen::MatrixXf optimizer::GetE0(){
 }
 
 
-Eigen::MatrixXf optimizer::GetJ(){
+Eigen::MatrixXd optimizer::GetJ(){
 
-    Eigen::MatrixXf J(this->v_silhouette3d.size(), 6);
+    Eigen::MatrixXd J(this->v_silhouette3d.size(), 6);
 
     for (int i = 0; i < this->v_silhouette3d.size(); i++){
 
-        Eigen::Vector3f p = this->v_silhouette3d[i];
-        Eigen::Vector3f p_hat = pi4to3f(this->T * pi3to4f(p));
-        Eigen::Vector3f x_hat = this->K * p_hat;
-        Eigen::Vector2f x = pi3to2f( x_hat );
-        int image_x = FloatRoundToInt(x[0]);
-        int image_y = FloatRoundToInt(x[1]);
+        Eigen::Vector3d p = this->v_silhouette3d[i];
+        Eigen::Vector3d p_hat = pi4to3f(this->T * pi3to4f(p));
+        Eigen::Vector3d x_hat = this->K * p_hat;
+        Eigen::Vector2d x = pi3to2f( x_hat );
+        float image_x = x[0];
+        float image_y = x[1];
 
-        Eigen::MatrixXf grad_dist = dev_dist(this->dist, image_x, image_y);
-        Eigen::MatrixXf grad_pi = dev_pi3to2(x_hat[0], x_hat[1], x_hat[2]);
+        Eigen::MatrixXd grad_dist;
+        if(false)
+            grad_dist = dev_dist(this->dist, FloatRoundToInt(image_x), FloatRoundToInt(image_y));
+        else
+            grad_dist = dev_dist_float(this->dist, image_x, image_y);
+        Eigen::MatrixXd grad_pi = dev_pi3to2(x_hat[0], x_hat[1], x_hat[2]);
 
-        Eigen::MatrixXf gpK = grad_dist * grad_pi * this->K;
-        Eigen::Vector3f gpKT = gpK.transpose();
+        Eigen::MatrixXd gpK = grad_dist * grad_pi * this->K;
+        Eigen::Vector3d gpKT = gpK.transpose();
         // cout << "-----------------------------------------------------------" << endl;
         // cout << "gradient: " << grad_dist << endl;
         // cout << "-----------------------------------------------------------" << endl;
@@ -353,10 +445,10 @@ Eigen::MatrixXf optimizer::GetJ(){
         // cout << "-----------------------------------------------------------" << endl;
         // cout << "p_hat: " << p_hat.transpose() << endl;
         // cout << "-----------------------------------------------------------" << endl;
-        Eigen::Vector3f cross = p_hat.cross(gpKT);
+        Eigen::Vector3d cross = p_hat.cross(gpKT);
         // cout << "cross product: " << cross.transpose() << endl;
         // cout << "-----------------------------------------------------------" << endl;
-        Eigen::MatrixXf jacobian(1,6);
+        Eigen::MatrixXd jacobian(1,6);
         jacobian << gpK, cross.transpose(); 
         // cout << "jacobian: "<< jacobian << endl;
         // cout << "-----------------------------------------------------------" << endl;
@@ -372,37 +464,37 @@ Eigen::MatrixXf optimizer::GetJ(){
     return J;
 }
 
-Eigen::MatrixXf optimizer::GetDelta(){
+Eigen::MatrixXd optimizer::GetDelta(){
 
-    Eigen::MatrixXf delta(6,1);
-    Eigen::MatrixXf E0 = GetE0();
-    Eigen::MatrixXf J = GetJ();
-    Eigen::MatrixXf temp = J.transpose()*J; 
+    Eigen::MatrixXd delta(6,1);
+    Eigen::MatrixXd E0 = GetE0();
+    Eigen::MatrixXd J = GetJ();
+    Eigen::MatrixXd temp = J.transpose()*J; 
     delta = temp.inverse()*J.transpose()*E0;
 
     return delta;
 }
 
-Eigen::MatrixXf optimizer::GetDev(){
+Eigen::MatrixXd optimizer::GetDev(){
 
-    MatrixXf dev(1,6); 
-    dev = MatrixXf::Zero(1,6);
+    MatrixXd dev(1,6); 
+    dev = MatrixXd::Zero(1,6);
 
     for (int i = 0; i < this->v_silhouette3d.size(); i++){
 
-        Eigen::Vector3f p = this->v_silhouette3d[i];
-        Eigen::Vector3f p_hat = pi4to3f(this->T * pi3to4f(p));
-        Eigen::Vector3f x_hat = this->K * p_hat;
-        Eigen::Vector2f x = pi3to2f( x_hat );
+        Eigen::Vector3d p = this->v_silhouette3d[i];
+        Eigen::Vector3d p_hat = pi4to3f(this->T * pi3to4f(p));
+        Eigen::Vector3d x_hat = this->K * p_hat;
+        Eigen::Vector2d x = pi3to2f( x_hat );
         int image_x = FloatRoundToInt(x[0]);
         int image_y = FloatRoundToInt(x[1]);
 
-        Eigen::MatrixXf grad_dist = dev_dist(this->dist, image_x, image_y);
-        Eigen::MatrixXf grad_pi = dev_pi3to2(x_hat[0], x_hat[1], x_hat[2]);
+        Eigen::MatrixXd grad_dist = dev_dist(this->dist, image_x, image_y);
+        Eigen::MatrixXd grad_pi = dev_pi3to2(x_hat[0], x_hat[1], x_hat[2]);
 
-        Eigen::MatrixXf gpK = grad_dist * grad_pi * this->K;
+        Eigen::MatrixXd gpK = grad_dist * grad_pi * this->K;
 
-        MatrixXf T_dev(3,6);
+        MatrixXd T_dev(3,6);
         float X = p[0];
         float Y = p[1];
         float Z = p[2];
@@ -415,23 +507,23 @@ Eigen::MatrixXf optimizer::GetDev(){
 
 }
 
-Eigen::Matrix4f optimizer::GetT(){
+Eigen::Matrix4d optimizer::GetT(){
 
     return this->T;
 
 }
 
-Eigen::MatrixXf optimizer::LMalgorithm( float lambda ){
+Eigen::MatrixXd optimizer::LMalgorithm( float lambda ){
 
-    MatrixXf J = GetJ();
-    MatrixXf E = GetE0();
+    MatrixXd J = GetJ();
+    MatrixXd E = GetE0();
 
-    MatrixXf J_squared = J.transpose()*J;
-    VectorXf diagonal = J_squared.diagonal();
+    MatrixXd J_squared = J.transpose()*J;
+    VectorXd diagonal = J_squared.diagonal();
 
-    MatrixXf J_diagonal = diagonal.asDiagonal();
+    MatrixXd J_diagonal = diagonal.asDiagonal();
 
-    MatrixXf delta_lambda = -(J_squared + lambda*J_diagonal).inverse() * (J.transpose() * E);
+    MatrixXd delta_lambda = -(J_squared + lambda*J_diagonal).inverse() * (J.transpose() * E);
     
     return delta_lambda;
 }
@@ -440,10 +532,10 @@ void optimizer::Draw( Mat image ){
 
     for ( int i = 0; i < this -> v_silhouette3d.size(); i ++){
 
-        Eigen::Vector3f p = this->v_silhouette3d[i];
-        Eigen::Vector3f p_hat = pi4to3f(this->T * pi3to4f(p));
-        Eigen::Vector3f x_hat = this->K * p_hat;
-        Eigen::Vector2f x = pi3to2f( x_hat );
+        Eigen::Vector3d p = this->v_silhouette3d[i];
+        Eigen::Vector3d p_hat = pi4to3f(this->T * pi3to4f(p));
+        Eigen::Vector3d x_hat = this->K * p_hat;
+        Eigen::Vector2d x = pi3to2f( x_hat );
         int image_x = FloatRoundToInt(x[0]);
         int image_y = FloatRoundToInt(x[1]);
 
@@ -452,3 +544,61 @@ void optimizer::Draw( Mat image ){
     }
 
 }
+
+VectorXd optimizer::desperate(){
+
+    VectorXd output(6,1); output.setZero();
+
+    VectorXd delta = pseudo_log( this->T );
+    // cout << "delta " << delta.tail<3>() << endl;
+    // cout << "delta " << delta.tail<3>().norm() << endl;
+
+    float trans_step = 1;
+    float rot_step = 0.000001;
+
+    for (int i = 0; i < 3; i++){
+
+        VectorXd up = delta;
+        VectorXd down = delta;
+
+        up[i] += trans_step;
+        down[i] -= trans_step;
+
+        Matrix4d up_matrix = CVGLConversion(pseudo_exp(up));
+        Matrix4d down_matrix = CVGLConversion(pseudo_exp(down));
+
+        optimizer opt_up (this->v_silhouette3d, this->K, this->camera_pose, up_matrix, this->dist);
+        optimizer opt_down (this->v_silhouette3d, this->K, this->camera_pose, down_matrix, this->dist);
+
+        float dev = (opt_up.GetE0().sum() - opt_down.GetE0().sum())/(2*trans_step);
+
+        output(i,0)=dev;
+
+    }
+
+    if(false)
+    for (int i = 3; i < 6; i++){
+
+        VectorXd increment(6,1); increment.setZero();
+        increment(i,0) = rot_step;
+
+        Matrix4d rot_up = pseudo_exp(increment);
+        Matrix4d rot_down = pseudo_exp(-increment);
+
+        Matrix4d up_matrix = CVGLConversion(rot_up * this->T);
+        Matrix4d down_matrix = CVGLConversion(rot_down * this->T);
+
+        optimizer opt_up (this->v_silhouette3d, this->K, this->camera_pose, up_matrix, this->dist);
+        optimizer opt_down (this->v_silhouette3d, this->K, this->camera_pose, down_matrix, this->dist);
+
+        float dev = (opt_up.GetE0().sum() - opt_down.GetE0().sum())/(2*rot_step);
+
+        output(i,0)=dev;
+    }
+
+    return output;
+
+
+}
+
+

@@ -29,53 +29,56 @@ using namespace Eigen;
 #include <algorithm>
 
 
-struct triangle {
+// struct triangle {
 
-    Vector3f vertex1;
-    Vector3f vertex2;
-    Vector3f vertex3; 
+//     Vector3d vertex1;
+//     Vector3d vertex2;
+//     Vector3d vertex3; 
 
-};
+// };
 
-float Area (triangle tri){
+// double Area (triangle tri){
     
-    Vector3f a = tri.vertex1;
-    Vector3f b = tri.vertex2;
-    Vector3f c = tri.vertex3;
+//     Vector3d a = tri.vertex1;
+//     Vector3d b = tri.vertex2;
+//     Vector3d c = tri.vertex3;
 
-    Vector3f ab = a-b;
-    Vector3f ac = a-c;
+//     Vector3d ab = a-b;
+//     Vector3d ac = a-c;
     
-    float theta = acos(ab.dot(ac)/(ab.norm()* ac.norm()));
+//     double theta = acos(ab.dot(ac)/(ab.norm()* ac.norm()));
     
-    float area = 0.5 * ab.norm() * ac.norm() * sin(theta);
+//     double area = 0.5 * ab.norm() * ac.norm() * sin(theta);
 
 
-    return area;
-}
+//     return area;
+// }
 
-vector<int> indexSort( vector<float> x ){
+// vector<int> indexSort( vector<double> x ){
 
-    vector<int> index;
+//     vector<int> index;
 
-    index.resize(x.size());
-    std::size_t n(0);
-    std::generate(std::begin(index), std::end(index), [&]{ return n++; });
+//     index.resize(x.size());
+//     std::size_t n(0);
+//     std::generate(std::begin(index), std::end(index), [&]{ return n++; });
 
-    std::sort(  std::begin(index), 
-                std::end(index),
-                [&](int i1, int i2) { return x[i1] < x[i2]; } );
+//     std::sort(  std::begin(index), 
+//                 std::end(index),
+//                 [&](int i1, int i2) { return x[i1] < x[i2]; } );
 
-    return index;
+//     return index;
 
-}
+// }
 
-bool compare(int a, int b, vector<float> * data)
-{
-    return data[a] < data[b];
-}
+// bool compare(int a, int b, vector<float> * data)
+// {
+//     return data[a] < data[b];
+// }
+
+
 
 int main() {
+
     // //so2
     // {
     //     double theta = 0.1;
@@ -165,27 +168,87 @@ int main() {
     
     cout << "The size of triangles is " << triangles.size() << endl;
 
-    vector<float> area;
+    vector<double> area;
 
     for (int i = 0; i < triangles.size(); i++){
 
-        float A = Area(triangles[i]);
+        double A = Area(triangles[i]);
         area.push_back(A);
     }
 
     cout << "The size of area is " << area.size() << endl;
 
-    vector<float> test = {3,0,1,4,5};
-    vector<int> order = indexSort(test);
+    vector<int> sorted_index;
+    sorted_index = indexSort(area);
 
-    for (int i; i < order.size(); i++){
+    cout << "The size of sorted_index is " << sorted_index.size() << endl;
 
-        cout << order[i] << " ";
+    vector<Vector3d> picked_vertices;
+
+    for (int i = 0; i < 16; i++){
+
+        int number = sorted_index.size()-1-i;
+        int index = sorted_index[number];
+        
+        picked_vertices.push_back(triangles[index].vertex1);
+        picked_vertices.push_back(triangles[index].vertex2);
+        picked_vertices.push_back(triangles[index].vertex3);
+        
     }
 
-    // Vector3f a;
-    // Vector3f b;
-    // Vector3f c;
+    cout << "The size of picked_vertices is " << picked_vertices.size() << endl;    
+
+    Mat dummy(480,640, CV_8UC3);
+
+    Matrix3d K; K << 2743.21, 0, 320,
+                     0, 2743.21, 240, 
+                     0, 0, 1;
+    
+    Matrix4d camera_pose; camera_pose << 1,0,0,0,
+                                         0,1,0,0,
+                                         0,0,1,0,
+                                         0,0,0,1;
+    
+    Matrix4d model_pose; model_pose << 1,0,0,0,
+                                       0,0,-1,0,
+                                       0,1,0,-203000,
+                                       0,0,0,1;
+
+    for (int i = 0; i < picked_vertices.size(); i++){
+
+        cout << picked_vertices[i] << "\n" << endl;
+    }
+
+    optimizer opt(picked_vertices, K, camera_pose, model_pose, dummy);
+    Mat scratch(480,640, CV_8UC3);
+    
+    cout << "The number of channel of scratch is " << scratch.channels() << endl;
+    opt.Draw(scratch);
+    imshow(" ", scratch);
+
+    cvWaitKey(0);
+
+
+
+    // vector<int> test = {1,2,3,4,5,6};
+    // int a = 10;
+    // if (find(test.begin(), test.end(), a) != test.end()){
+
+    //     cout << " the element a is in the vector " << endl;
+
+    // }else{
+
+    //     cout << " the element a is not in the vector " << endl;
+    // }
+
+
+
+
+
+
+    // Vector3d a;
+    // Vector3d b;
+    // Vector3d c;
 
     // a << 2,0,0;
     // b << 0,0,0;

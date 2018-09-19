@@ -5,6 +5,7 @@
 #include <iostream>
 #include <sstream>  
 #include <fstream>
+#include <iomanip>
 
 #include "opencv2/core/core.hpp"
 #include "opencv2/highgui/highgui.hpp"
@@ -32,6 +33,24 @@ using namespace std;
 using namespace cv;
 using namespace Eigen;
 
+// void process(){
+
+//     Matrix3d K; K << 2743.21, 0, 320,
+//                      0, 2743.21, 240, 
+//                      0, 0, 1;
+    
+//     Matrix4d camera_pose; camera_pose << 1,0,0,0,
+//                                          0,1,0,0,
+//                                          0,0,1,0,
+//                                          0,0,0,1;
+
+
+
+//     optimizer opt(picked_vertices, K, E_Camera_pose, E_Model, distmap);
+
+
+// }
+
 int main( int argc, char *argv[] )
 {
     //--------------------------- input section ---------------------------
@@ -42,7 +61,7 @@ int main( int argc, char *argv[] )
     // Intrinsic matrix : 10° Field of View, 4:3 ratio, display range : 0.1 unit <-> 300000 units
     glm::mat4 perspective = glm::perspective(glm::radians(10.0f), 4.0f / 3.0f, 0.1f, 300000.0f);
     // This is the camera intrinsic matrix for using opencv projection
-    Eigen::Matrix3f K; K << 2743.21, 0, 320,0, 2743.21, 240, 0, 0, 1;
+    Eigen::Matrix3d K; K << 2743.21, 0, 320,0, 2743.21, 240, 0, 0, 1;
     // Camera's pose
     glm::mat4 Camera_pose       = glm::lookAt(
                                 glm::vec3(0,0,0), // Camera is at (0,0,0), in World Space
@@ -57,19 +76,19 @@ int main( int argc, char *argv[] )
     //     0.0f, 0.0f, 0.0f, 1.0f
     //     };
     float object_pose[16] = {
-        0.0f, -1.0f, 0.0f, -1800.0f,
-        1.0f, 0.0f, 0.0f, 2000.0f,
+        0.0f, -1.0f, 0.0f, -1500.0f,
+        1.0f, 0.0f, 0.0f, 1500.0f,
         0.0f, 0.0f, 1.0f, -203000.0f,
         0.0f, 0.0f, 0.0f, 1.0f
         };
 
     glm::mat4 ModelT = glm::make_mat4(object_pose);
     glm::mat4 Model = glm::transpose(ModelT);
-    Matrix4f E_perspective = ConvertGlmToEigenMat4f(perspective);
-    Matrix4f E_Camera_pose = ConvertGlmToEigenMat4f(Camera_pose);
+    Matrix4d E_perspective = ConvertGlmToEigenMat4f(perspective);
+    Matrix4d E_Camera_pose = ConvertGlmToEigenMat4f(Camera_pose);
     cout << "E_Camera_pose" << E_Camera_pose << endl;
 
-    Matrix4f E_Model = ConvertGlmToEigenMat4f(Model);
+    Matrix4d E_Model = ConvertGlmToEigenMat4f(Model);
 
     //Load the satellite model
     std::vector<glm::vec3> vertices;
@@ -90,6 +109,52 @@ int main( int argc, char *argv[] )
     // parameter used by LM algorithm
     float lambda = 1;
     float nu = 1.4;
+
+    // select the corners of the solar panels
+    vector<triangle> triangles;
+
+    for (int i = 0; i < vertices.size(); i += 3 ){
+
+        triangle tri;
+        tri.vertex1 = ConvertGlmToEigen3f(vertices[i]);
+        tri.vertex2 = ConvertGlmToEigen3f(vertices[i+1]);
+        tri.vertex3 = ConvertGlmToEigen3f(vertices[i+2]);
+
+        triangles.push_back(tri);
+
+    }
+    
+    // cout << "The size of triangles is " << triangles.size() << endl;
+
+    vector<double> area;
+
+    for (int i = 0; i < triangles.size(); i++){
+
+        double A = Area(triangles[i]);
+        area.push_back(A);
+    }
+
+    // cout << "The size of area is " << area.size() << endl;
+
+    vector<int> sorted_index;
+    sorted_index = indexSort(area);
+
+    // cout << "The size of sorted_index is " << sorted_index.size() << endl;
+
+    vector<Vector3d> picked_vertices;
+
+    for (int i = 0; i < 8; i++){
+
+        int number = sorted_index.size()-1-i;
+        int index = sorted_index[number];
+        
+        picked_vertices.push_back(triangles[index].vertex1);
+        picked_vertices.push_back(triangles[index].vertex2);
+        picked_vertices.push_back(triangles[index].vertex3);
+        
+    }
+
+    // cout << "The size of picked_vertices is " << picked_vertices.size() << endl;    
 
     //---------------------------------- start of the algorithm ---------------------------------------
     
@@ -189,6 +254,9 @@ int main( int argc, char *argv[] )
 
     Mat distmap = DistanceMap(original, noise);
 
+    // imwrite("tmp.exr", distmap);
+    // cout << distmap.rowRange(30, 40).colRange(40, 50) << endl;
+
     // string filename = "/home/xinghui/Find-Silhouette/distmap.csv";
     // ofstream myfile;
     // myfile.open(filename.c_str());
@@ -198,16 +266,13 @@ int main( int argc, char *argv[] )
     Mat dist8u1;
     normalize(distmap, dist8u1, 0.0, 255, NORM_MINMAX, CV_8UC3);
 
-
-
-   
     // cout << endl;
 
     // return 0;
 
     imwrite("/home/xinghui/Find-Silhouette/dist.png", distmap);
     // do{
-    for (int i = 0; i < 100; i++){
+    for (int i = 0; i < 200; i++){
         
         glm::mat4 glmT = Camera_pose * Model;
         glm::mat4 MVP = perspective * glmT;    
@@ -253,7 +318,7 @@ int main( int argc, char *argv[] )
         cv::flip(image, image, 0);
         // cv::imwrite(out, image);
 
-        vector<Vector3f> v_silhouette3d = SelectSilhouettePoint (image, E_perspective, E_Camera_pose, E_Model, VertexMember);
+        vector<Vector3d> v_silhouette3d = SelectSilhouettePoint (image, E_perspective, E_Camera_pose, E_Model, VertexMember);
 
         Mat temp, temp2;
         cvtColor(dist8u1, temp, CV_GRAY2RGB);
@@ -262,7 +327,7 @@ int main( int argc, char *argv[] )
 
         for (int j = 0; j < v_silhouette3d.size(); j++){
 
-            Vector3f v = v_silhouette3d[j];
+            Vector3d v = v_silhouette3d[j];
 
             Vector2i pixel = ProjectOnCVimage(width, height, E_perspective, E_Camera_pose, E_Model, v);
             DrawPoint(temp, pixel[0], pixel[1]);
@@ -274,45 +339,51 @@ int main( int argc, char *argv[] )
         optimizer opt(v_silhouette3d, K, E_Camera_pose, E_Model, distmap);
         opt.Draw(temp2);
         imshow(" OpenCV ", temp2);
-        Eigen::VectorXf dev = opt.GetDev().transpose();
-        
+        Eigen::VectorXd dev = opt.desperate();
+
+        VectorXd current_p = pseudo_log(opt.GetT());
+        current_p = current_p - 1*dev;
+        Matrix4d current_T = pseudo_exp(current_p);
         cout << "Current derivative is \n" << dev << " \n" << endl;
 
-        Matrix3f rot = opt.GetT().block<3,3>(0,0);
-        VectorXf trans = opt.GetT().block<3,1>(0,3);
-        Sophus::SO3f rotation(rot);
+        optimizer opt2(v_silhouette3d, K, E_Camera_pose, CVGLConversion(current_T), distmap);
+        cout <<  std::setprecision(30) << opt2.GetE0().sum() << endl;
+    
+        // Matrix3d rot = opt.GetT().block<3,3>(0,0);
+        // VectorXd trans = opt.GetT().block<3,1>(0,3);
+        // Sophus::SO3f rotation(rot);
 
-        cout << "Current rotation matrix is \n" << rotation.matrix() << " \n" << endl;
+        // cout << "Current rotation matrix is \n" << rotation.matrix() << " \n" << endl;
 
-        VectorXf rot_delta = rotation.log(); 
-        VectorXf delta(6);
-        delta << trans, rot_delta;
+        // VectorXd rot_delta = rotation.log(); 
+        // VectorXd delta(6);
+        // delta << trans, rot_delta;
 
-        cout << "Current Rodrigues vector is \n" << delta << " \n"<< endl;
+        // cout << "Current Rodrigues vector is \n" << delta << " \n"<< endl;
         
-        VectorXf phi(6);
-        phi << 30,0,0,0,0,0;
+        // VectorXd phi(6);
+        // phi << 0.01,0.01,0.01,0.000001,0.000001,0.000001;
 
-        VectorXf product = phi.cwiseProduct(dev);
-        cout << "Current product of scaling vector and derivative is \n" << product << " \n" << endl;
-        delta = delta-product;
+        // VectorXd product = phi.cwiseProduct(dev);
+        // cout << "Current product of scaling vector and derivative is \n" << product << " \n" << endl;
+        // delta = delta-product;
 
-        VectorXf after_trans = delta.head(3);
-        VectorXf after_rot = delta.tail(3);
+        // VectorXd after_trans = delta.head(3);
+        // VectorXd after_rot = delta.tail(3);
 
-        MatrixXf new_model(4,4);
-        Sophus::SO3f r = Sophus::SO3f::exp(after_rot);
-        new_model.block<3,3>(0,0) = r.matrix();
-        new_model.block<3,1>(0,3) = after_trans;
-        MatrixXf last_row(1,4);
-        last_row << 0,0,0,1;
-        new_model.block<1,4>(3,0) = last_row;
+        // MatrixXf new_model(4,4);
+        // Sophus::SO3f r = Sophus::SO3f::exp(after_rot);
+        // new_model.block<3,3>(0,0) = r.matrix();
+        // new_model.block<3,1>(0,3) = after_trans;
+        // MatrixXf last_row(1,4);
+        // last_row << 0,0,0,1;
+        // new_model.block<1,4>(3,0) = last_row;
 
 
         // Sophus::SE3f after_transform = Sophus::SE3f::exp(delta);
 
         // MatrixXf new_model = after_transform.matrix();
-        cout << "New T is \n" << new_model << " \n"<< endl;
+        // cout << "New T is \n" << new_model << " \n"<< endl;
 
 
 
@@ -341,13 +412,13 @@ int main( int argc, char *argv[] )
   //       cout << deltaT << endl;
         cout << "------------------------------------------------------------------" << endl;
         cout << "Total Energy is " << endl;
-        cout << opt.GetE0().sum()  << endl;
+        cout << std::setprecision(30) <<  opt.GetE0().sum()  << endl;
         cout << "------------------------------------------------------------------" << endl;
   //       cout << "------------------------------------------------------------------" << endl;
 
         // cout << v_silhouette3d[0] << endl;
-        // Vector3f p = v_silhouette3d[0];
-        // Vector3f x_hat = K * pi4to3f( CVGLConversion(E_Model) * pi3to4f(p));
+        // Vector3d p = v_silhouette3d[0];
+        // Vector3d x_hat = K * pi4to3f( CVGLConversion(E_Model) * pi3to4f(p));
         // Vector2f x = pi3to2f(x_hat);
         // int pixelx = FloatRoundToInt(x[0]);
         // int pixely = FloatRoundToInt(x[1]); 
@@ -372,7 +443,7 @@ int main( int argc, char *argv[] )
 
 
 
-        E_Model = CVGLConversion(new_model);
+        E_Model = CVGLConversion(current_T);
         Model = ConvertEigenMat4fToGlm(E_Model);
 
 

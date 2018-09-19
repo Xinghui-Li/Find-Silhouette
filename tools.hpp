@@ -20,52 +20,95 @@ using namespace Eigen;
 using namespace std;
 using namespace cv;
 
-Eigen::Vector3f ConvertGlmToEigen3f( glm::vec3 v );
-Eigen::Matrix4f ConvertGlmToEigenMat4f ( glm::mat4 mat );
-glm::mat4 ConvertEigenMat4fToGlm (Eigen::Matrix4f mat);
-Eigen::Vector3f pi4to3f ( Eigen::Vector4f v );
-Eigen::Vector2f pi3to2f ( Eigen::Vector3f v );
-Eigen::Vector4f pi3to4f ( Eigen::Vector3f v );
+Eigen::Vector3d ConvertGlmToEigen3f( glm::vec3 v );
+Eigen::Matrix4d ConvertGlmToEigenMat4f ( glm::mat4 mat );
+glm::mat4 ConvertEigenMat4fToGlm (Eigen::Matrix4d mat);
+Eigen::Vector3d pi4to3f ( Eigen::Vector4d v );
+Eigen::Vector2d pi3to2f ( Eigen::Vector3d v );
+Eigen::Vector4d pi3to4f ( Eigen::Vector3d v );
+Matrix4d pseudo_exp( VectorXd delta );
+VectorXd pseudo_log( const Matrix4d& transform);
 int FloatRoundToInt(float a);
 bool SearchNeighbour (cv::Mat image, int x, int y );
 void DrawPoint (cv::Mat image, int x , int y );
-Eigen::Matrix4f CVGLConversion ( Eigen::Matrix4f mat );
-Eigen::Vector2i ProjectOnCVimage (int width, int height, Eigen::Matrix4f perspective, Eigen::Matrix4f camera_pose, Eigen::Matrix4f model_pose, Eigen::Vector3f vertex);
-vector<Vector3f> SelectSilhouettePoint (Mat image, Matrix4f perspective, Matrix4f camera_pose, Matrix4f model_pose, vector<glm::vec3> vertex);
+Eigen::Matrix4d CVGLConversion ( Eigen::Matrix4d mat );
+Eigen::Vector2i ProjectOnCVimage (int width, int height, Eigen::Matrix4d perspective, Eigen::Matrix4d camera_pose, Eigen::Matrix4d model_pose, Eigen::Vector3d vertex);
+vector<Vector3d> SelectSilhouettePoint (Mat image, Matrix4d perspective, Matrix4d camera_pose, Matrix4d model_pose, vector<glm::vec3> vertex);
 Mat DistanceMap ( Mat original, Mat noise );
-Eigen::MatrixXf dev_dist( Mat image, int image_x, int image_y);
-Eigen::MatrixXf dev_pi3to2(float x, float y, float z);
+Eigen::MatrixXd dev_dist( Mat image, int image_x, int image_y);
+Eigen::MatrixXd dev_pi3to2(float x, float y, float z);
+
+struct triangle{
+    Vector3d vertex1;
+    Vector3d vertex2;
+    Vector3d vertex3; 
+};
+double Area(triangle tri);
+vector<int> indexSort( vector<double> x );
 
 class optimizer {
 
 	public:
     
-        optimizer(vector<Eigen::Vector3f> v_silhouette3d, Eigen::Matrix3f K, Eigen::Matrix4f camera_pose, Eigen::Matrix4f Model, Mat dist);
+        optimizer(vector<Eigen::Vector3d> v_silhouette3d, Eigen::Matrix3d K, Eigen::Matrix4d camera_pose, Eigen::Matrix4d Model, Mat dist);
 
-        Eigen::MatrixXf GetE0();
+        Eigen::MatrixXd GetE0();
 
-        Eigen::MatrixXf GetJ();
+        Eigen::MatrixXd GetJ();
 
-        Eigen::MatrixXf GetDelta();
+        Eigen::MatrixXd GetDelta();
 
-        Eigen::Matrix4f GetT();
+        Eigen::Matrix4d GetT();
 
-        Eigen::MatrixXf LMalgorithm(float lambda);
+        Eigen::MatrixXd LMalgorithm(float lambda);
 
-        Eigen::MatrixXf GetDev();
+        Eigen::MatrixXd GetDev();
 
         void Draw( Mat image );
 
-
+        VectorXd desperate();
 
     
     private:
 
-        vector<Eigen::Vector3f> v_silhouette3d;
-        Eigen::Matrix3f K;
-        Eigen::Matrix4f camera_pose;
-        Eigen::Matrix4f Model;
-        Eigen::Matrix4f T;
+        vector<Eigen::Vector3d> v_silhouette3d;
+        Eigen::Matrix3d K;
+        Eigen::Matrix4d camera_pose;
+        Eigen::Matrix4d Model;
+        Eigen::Matrix4d T;
         Mat dist;
 };
 
+template< typename Tp >
+Tp bilinearInterpolate(const Mat& img, Tp x, Tp y)
+{
+    if( x < Tp(0) || x > Tp(639) || y < Tp(0) || y > Tp(479) )
+        return Tp(1.f/0.f);
+    int px = (int)x; // floor of x
+    int py = (int)y; // floor of y
+    const int stride = img.cols;
+    const float* data = (const float*) img.data;
+    const float* p0 = data + px + py * stride; // pointer to first pixel
+
+    // load the four neighboring pixels
+    const float& p1 = p0[0 + 0 * stride];
+    const float& p2 = p0[1 + 0 * stride];
+    const float& p3 = p0[0 + 1 * stride];
+    const float& p4 = p0[1 + 1 * stride];
+
+    // Calculate the weights for each pixel
+    Tp fx = x - px;
+    Tp fy = y - py;
+    Tp fx1 = Tp(1.) - fx;
+    Tp fy1 = Tp(1.) - fy;
+
+    Tp w1 = fx1 * fy1;
+    Tp w2 = fx  * fy1;
+    Tp w3 = fx1 * fy ;
+    Tp w4 = fx  * fy ;
+
+    // Calculate the weighted sum of pixels (for each color channel)
+    Tp out = p1 * w1 + p2 * w2 + p3 * w3 + p4 * w4;
+
+    return out;
+}
