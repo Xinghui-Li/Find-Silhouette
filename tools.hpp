@@ -68,6 +68,8 @@ class optimizer {
 
         VectorXd desperate();
 
+        vector<Vector3d> GetPoint();
+
     
     private:
 

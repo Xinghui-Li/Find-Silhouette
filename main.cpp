@@ -81,9 +81,15 @@ int main( int argc, char *argv[] )
         0.0f, 0.0f, 1.0f, -203000.0f,
         0.0f, 0.0f, 0.0f, 1.0f
         };
+    
+    Matrix4d object_pose2; object_pose2 << 0,-1,0,-1000,1,0,0,1000,0,0,1,-203000,0,0,0,1;
+    Vector3d disturb; disturb << 0.2, 0.2, 0.2;
+    Sophus::SO3d dis = Sophus::SO3d::exp(disturb);
 
-    glm::mat4 ModelT = glm::make_mat4(object_pose);
-    glm::mat4 Model = glm::transpose(ModelT);
+    object_pose2.block<3,3>(0,0) = dis.matrix() * object_pose2.block<3,3>(0,0);
+
+    // glm::mat4 ModelT = glm::make_mat4(object_pose2);
+    glm::mat4 Model = ConvertEigenMat4fToGlm(object_pose2);
     Matrix4d E_perspective = ConvertGlmToEigenMat4f(perspective);
     Matrix4d E_Camera_pose = ConvertGlmToEigenMat4f(Camera_pose);
     cout << "E_Camera_pose" << E_Camera_pose << endl;
@@ -346,8 +352,7 @@ int main( int argc, char *argv[] )
         Matrix4d current_T = pseudo_exp(current_p);
         cout << "Current derivative is \n" << dev << " \n" << endl;
 
-        optimizer opt2(v_silhouette3d, K, E_Camera_pose, CVGLConversion(current_T), distmap);
-        cout <<  std::setprecision(30) << opt2.GetE0().sum() << endl;
+
     
         // Matrix3d rot = opt.GetT().block<3,3>(0,0);
         // VectorXd trans = opt.GetT().block<3,1>(0,3);
@@ -390,55 +395,16 @@ int main( int argc, char *argv[] )
         // Eigen::MatrixXf deltaT = Sophus::SE3f::exp(dev).matrix();
 
 
-  //       cout << "------------------------------------------------------------------" << endl;
-  //       // cout << " The " << i << " loop" << endl;
-  //       cout << "------------------------------------------------------------------" << endl;
-  //       cout << "E_Model is " << endl;
-  //       cout << E_Model << endl;
-  //       cout << "------------------------------------------------------------------" << endl;
-  //       cout << "E_Camera_pose * E_Model is " << endl;
-  //       cout << E_Camera_pose * E_Model << endl;
-  //       cout << "------------------------------------------------------------------" << endl;
-  //       cout << "T is " << endl;
-  //       cout << CVGLConversion(E_Camera_pose * E_Model) << endl;
-        // cout << "------------------------------------------------------------------" << endl;
-  //       cout << "Jacobian is " << endl;
-  //       cout << opt.GetJ() << endl;
-        // cout << "------------------------------------------------------------------" << endl;
-  //       cout << "delta is " << endl;
-  //       cout << delta << endl;
-  //       cout << "------------------------------------------------------------------" << endl;
-  //       cout << "deltaT is " << endl;
-  //       cout << deltaT << endl;
+ 
         cout << "------------------------------------------------------------------" << endl;
         cout << "Total Energy is " << endl;
-        cout << std::setprecision(30) <<  opt.GetE0().sum()  << endl;
+        cout <<  opt.GetE0().sum()  << endl;
         cout << "------------------------------------------------------------------" << endl;
-  //       cout << "------------------------------------------------------------------" << endl;
+        cout << "Pose is " << endl;
+        cout <<  opt.GetT()  << endl;
+        cout << "------------------------------------------------------------------" << endl;
 
-        // cout << v_silhouette3d[0] << endl;
-        // Vector3d p = v_silhouette3d[0];
-        // Vector3d x_hat = K * pi4to3f( CVGLConversion(E_Model) * pi3to4f(p));
-        // Vector2f x = pi3to2f(x_hat);
-        // int pixelx = FloatRoundToInt(x[0]);
-        // int pixely = FloatRoundToInt(x[1]); 
-
-        // cout << (float) distmap.at<uchar>(pixely, pixelx) << endl;
-        // cout << (float) distmap.at<uchar>(pixely+1, pixelx) << endl;
-        // cout << (float) distmap.at<uchar>(pixely-1, pixelx) << endl;
-        // cout << (float) distmap.at<uchar>(pixely, pixelx+1) << endl;
-        // cout << (float) distmap.at<uchar>(pixely, pixelx-1) << endl;
-        // cout << "------------------------------------------------------------------" << endl;
-        // cout <<  temp2.at<Vec3b>(pixely, pixelx) << endl;
-        // cout <<  temp2.at<Vec3b>(pixely+1, pixelx) << endl;
-        // cout <<  temp2.at<Vec3b>(pixely-1, pixelx) << endl;
-        // cout <<  temp2.at<Vec3b>(pixely, pixelx+1) << endl;
-        // cout <<  temp2.at<Vec3b>(pixely, pixelx-1) << endl;
-        // cout << pixelx << " " << pixely << endl;
-        // cout << temp2.channels() << endl;
-        // DrawPoint(temp2, pixelx, pixely);
-
-        // imshow("temp2", temp2);
+    
 
 
 

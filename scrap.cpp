@@ -5,6 +5,7 @@
 #include <sstream>  
 #include <fstream>
 #include <math.h>
+#include <iomanip>
 
 #include "opencv2/core/core.hpp"
 #include "opencv2/highgui/highgui.hpp"
@@ -75,6 +76,80 @@ using namespace Eigen;
 //     return data[a] < data[b];
 // }
 
+void LoadModel(std::string Filename, vector<Vector3f> & Vertices, vector< vector<int> >& face)
+{
+    FILE * Model;
+
+    Model = fopen(Filename.c_str(),"r");
+
+    if( Model == NULL){
+        std::cout << "Cannot open the file" <<std::endl;
+    }
+
+    std::cout << "Successfully open the file" << std::endl;
+
+    while(1) {
+        char lineHeader [80];
+
+
+        int res = fscanf(Model,"%s", lineHeader);
+
+        if (res == EOF) {
+            std::cout << "Complete Reading the file" << std::endl;
+            break;
+        }
+
+        if (strcmp(lineHeader, "v") == 0) {
+            Eigen::Vector3f Vertex;
+            fscanf(Model, "%f %f %f\n", &Vertex[0], &Vertex[1], &Vertex[2]);
+            Vertices.push_back(Vertex);
+        } else if(strcmp(lineHeader,"f")==0){
+            std::vector<int> vertexIndex (4);
+            fscanf(Model, "%d//%*d %d//%*d %d//%*d %d//%*d\n", &vertexIndex[0], &vertexIndex[1], &vertexIndex[2],&vertexIndex[3]);
+            face.push_back(vertexIndex);
+        }
+    }
+
+    std::cout << "Complete Loading the model" << std::endl;
+
+    }
+
+bool c_vertex( const Vector3f& a, const Vector3f& b){
+
+    if (a[0] == b[0] && a[1] == b[1] && a[2] == b[2]){
+
+        return true;
+    }else{
+
+        return false;
+    }
+
+} 
+
+struct edge {
+
+    Vector3f vertex1;
+    Vector3f vertex2;
+
+    int index1;
+    int index2;
+
+};
+
+bool c_edge( const edge& a, const edge& b){
+    
+    if ( c_vertex(a.vertex1, b.vertex1) || c_vertex(a.vertex1, b.vertex2)){
+
+        if ( c_vertex(a.vertex2, b.vertex1) || c_vertex(a.vertex2, b.vertex2) ){
+
+            return true;
+        }
+    }else{
+
+        return false;
+    }
+
+}
 
 
 int main() {
@@ -144,89 +219,88 @@ int main() {
 
     // Find the corner of the solar panel
 
-    //Load the satellite model
-    std::vector<glm::vec3> vertices;
-    std::vector<glm::vec3> VertexMember;
-    std::string Model_Path;
-    Model_Path = "/home/xinghui/Find-Silhouette/satellite_model.obj";
-    bool res = loadOBJ( Model_Path.c_str(), vertices, VertexMember);
-    std::cout << "The size of vertices is " << vertices.size() << std:: endl;
-    std::cout << "The size of VertexMember is " << VertexMember.size() << std:: endl;
+    // std::vector<glm::vec3> vertices;
+    // std::vector<glm::vec3> VertexMember;
+    // std::string Model_Path;
+    // Model_Path = "/home/xinghui/Find-Silhouette/simple_sat.obj";
+    // bool res = loadOBJ( Model_Path.c_str(), vertices, VertexMember);
+    // std::cout << "The size of vertices is " << vertices.size() << std:: endl;
+    // std::cout << "The size of VertexMember is " << VertexMember.size() << std:: endl;
     
-    vector<triangle> triangles;
+    // vector<triangle> triangles;
 
-    for (int i = 0; i < vertices.size(); i += 3 ){
+    // for (int i = 0; i < vertices.size(); i += 3 ){
 
-        triangle tri;
-        tri.vertex1 = ConvertGlmToEigen3f(vertices[i]);
-        tri.vertex2 = ConvertGlmToEigen3f(vertices[i+1]);
-        tri.vertex3 = ConvertGlmToEigen3f(vertices[i+2]);
+    //     triangle tri;
+    //     tri.vertex1 = ConvertGlmToEigen3f(vertices[i]);
+    //     tri.vertex2 = ConvertGlmToEigen3f(vertices[i+1]);
+    //     tri.vertex3 = ConvertGlmToEigen3f(vertices[i+2]);
 
-        triangles.push_back(tri);
+    //     triangles.push_back(tri);
 
-    }
+    // }
     
-    cout << "The size of triangles is " << triangles.size() << endl;
+    // cout << "The size of triangles is " << triangles.size() << endl;
 
-    vector<double> area;
+    // vector<double> area;
 
-    for (int i = 0; i < triangles.size(); i++){
+    // for (int i = 0; i < triangles.size(); i++){
 
-        double A = Area(triangles[i]);
-        area.push_back(A);
-    }
+    //     double A = Area(triangles[i]);
+    //     area.push_back(A);
+    // }
 
-    cout << "The size of area is " << area.size() << endl;
+    // cout << "The size of area is " << area.size() << endl;
 
-    vector<int> sorted_index;
-    sorted_index = indexSort(area);
+    // vector<int> sorted_index;
+    // sorted_index = indexSort(area);
 
-    cout << "The size of sorted_index is " << sorted_index.size() << endl;
+    // cout << "The size of sorted_index is " << sorted_index.size() << endl;
 
-    vector<Vector3d> picked_vertices;
+    // vector<Vector3d> picked_vertices;
 
-    for (int i = 0; i < 16; i++){
+    // for (int i = 0; i < 16; i++){
 
-        int number = sorted_index.size()-1-i;
-        int index = sorted_index[number];
+    //     int number = sorted_index.size()-1-i;
+    //     int index = sorted_index[number];
         
-        picked_vertices.push_back(triangles[index].vertex1);
-        picked_vertices.push_back(triangles[index].vertex2);
-        picked_vertices.push_back(triangles[index].vertex3);
+    //     picked_vertices.push_back(triangles[index].vertex1);
+    //     picked_vertices.push_back(triangles[index].vertex2);
+    //     picked_vertices.push_back(triangles[index].vertex3);
         
-    }
+    // }
 
-    cout << "The size of picked_vertices is " << picked_vertices.size() << endl;    
+    // cout << "The size of picked_vertices is " << picked_vertices.size() << endl;    
 
-    Mat dummy(480,640, CV_8UC3);
+    // Mat dummy(480,640, CV_8UC3);
 
-    Matrix3d K; K << 2743.21, 0, 320,
-                     0, 2743.21, 240, 
-                     0, 0, 1;
+    // Matrix3d K; K << 2743.21, 0, 320,
+    //                  0, 2743.21, 240, 
+    //                  0, 0, 1;
     
-    Matrix4d camera_pose; camera_pose << 1,0,0,0,
-                                         0,1,0,0,
-                                         0,0,1,0,
-                                         0,0,0,1;
+    // Matrix4d camera_pose; camera_pose << 1,0,0,0,
+    //                                      0,1,0,0,
+    //                                      0,0,1,0,
+    //                                      0,0,0,1;
     
-    Matrix4d model_pose; model_pose << 1,0,0,0,
-                                       0,0,-1,0,
-                                       0,1,0,-203000,
-                                       0,0,0,1;
+    // Matrix4d model_pose; model_pose << 1,0,0,0,
+    //                                    0,0,-1,0,
+    //                                    0,1,0,-203000,
+    //                                    0,0,0,1;
 
-    for (int i = 0; i < picked_vertices.size(); i++){
+    // for (int i = 0; i < picked_vertices.size(); i++){
 
-        cout << picked_vertices[i] << "\n" << endl;
-    }
+    //     cout << picked_vertices[i] << "\n" << endl;
+    // }
 
-    optimizer opt(picked_vertices, K, camera_pose, model_pose, dummy);
-    Mat scratch(480,640, CV_8UC3);
+    // optimizer opt(picked_vertices, K, camera_pose, model_pose, dummy);
+    // Mat scratch(480,640, CV_8UC3);
     
-    cout << "The number of channel of scratch is " << scratch.channels() << endl;
-    opt.Draw(scratch);
-    imshow(" ", scratch);
+    // cout << "The number of channel of scratch is " << scratch.channels() << endl;
+    // opt.Draw(scratch);
+    // imshow(" ", scratch);
 
-    cvWaitKey(0);
+    // cvWaitKey(0);
 
 
 
@@ -241,9 +315,89 @@ int main() {
     //     cout << " the element a is not in the vector " << endl;
     // }
 
+//-------------------------------------------------------------------------------------------------------------
+
+    // Generate fill for David
+
+    std::vector<Vector3f> vertices;
+    std::vector< vector<int> > face;
+    string filename = "/home/xinghui/Find-Silhouette/simple_sat.obj";
+
+    LoadModel(filename, vertices, face);
+
+    std::vector<edge> edges;
+
+    // cout << 4 % 4 << endl;
+
+    for (int i = 0; i < face.size(); i++){
+    
+        for ( int j = 0; j < 4; j++){
+
+            int index1 = j % 4;
+            int index2 = (j+1) % 4;
+            
+            edge ed;
+
+            ed.vertex1 = vertices[face[i][index1]-1];
+            ed.vertex2 = vertices[face[i][index2]-1];
+            ed.index1 = face[i][index1];
+            ed.index2 = face[i][index2];
 
 
+            if (edges.size() == 0){
 
+                edges.push_back(ed);
+
+            }else{
+
+                int count = 0;
+
+                for ( int k = 0; k < edges.size(); k++){
+
+                    if ( c_edge(ed, edges[k]) ){
+
+                        count ++;
+
+                    }
+
+                }
+
+                if (count == 0){
+
+                    edges.push_back(ed);
+                }
+            }
+
+        }
+    }
+
+    cout << "The number of vertex is " << vertices.size() << endl;
+    cout << "The number of face is " << face.size() << endl;
+    cout << "The number of edge is " << edges.size() << endl;
+
+    for (int i = 0; i < edges.size(); i++){
+        
+        cout << "-------------------------------------------------------------"<< endl;
+        cout << " index of the edge is " << i + 1 << endl;
+        cout << " vertices of the edge are " << edges[i].vertex1.transpose() << " " << edges[i].vertex2.transpose() << endl;
+        cout << " indices of the vertices of edge are " << edges[i].index1 << " " << edges[i].index2 << endl;
+        cout << " length of the edge is " << (edges[i].vertex1 - edges[i].vertex2).norm() << endl;
+
+    }
+
+    for (int i = 0; i < edges.size(); ++i)
+    {
+        cout << edges[i].index1 << " " << edges[i].index2 << endl;
+    }
+
+    // cout << edges[0].vertex1 << " \n" << endl;
+    // cout << edges[0].vertex2 << " \n" << endl;
+    // cout << (edges[0].vertex1 - edges[0].vertex2).norm() << endl;
+    // cout << "-------------------------------------------------------------"<< endl;
+
+    // cout << edges[1].vertex1 << " \n" << endl;
+    // cout << edges[1].vertex2 << " \n" << endl;
+    // cout << (edges[1].vertex1 - edges[1].vertex2).norm() << endl;
 
 
     // Vector3d a;
@@ -262,6 +416,17 @@ int main() {
     // float area = Area(tri);
 
     // cout << area << endl;
+
+    Matrix3d mat; mat << 0,-1,0,1,0,0,0,0,1;
+
+    Vector3d so3; so3 << 0.2, 0.2,0;
+    Sophus::SO3d delta = Sophus::SO3d::exp(so3);
+
+    Vector3d trans; trans << -1500,1500,203000;
+    cout <<  delta.matrix()* mat << "\n " << endl;
+    cout << delta.matrix() * trans << "\n"<< endl;
+
+
 
     return 0;
 }

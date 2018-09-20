@@ -107,7 +107,7 @@ VectorXd pseudo_log( const Matrix4d& transform){
     VectorXd trans = transform.block<3,1>(0,3);
     Sophus::SO3d rotation(rot);
 
-    cout << "Current rotation matrix is \n" << rotation.matrix() << " \n" << endl;
+    // cout << "Current rotation matrix is \n" << rotation.matrix() << " \n" << endl;
 
     VectorXd rot_delta = rotation.log(); 
     VectorXd delta(6);
@@ -405,8 +405,9 @@ Eigen::MatrixXd optimizer::GetE0(){
             double image_x = x[0];
             double image_y = x[1];
 
-            // cout << "x = " << x << endl;
+
             double e0 = bilinearInterpolate<double>(this->dist, image_x, image_y);
+            // cout << "Index "<< i << ":  " << x[0] << " " << x[1] << "    e0 = " << e0 <<endl;
             E0(i,0) = e0;    
         }
     }
@@ -554,7 +555,7 @@ VectorXd optimizer::desperate(){
     // cout << "delta " << delta.tail<3>().norm() << endl;
 
     float trans_step = 1;
-    float rot_step = 0.000001;
+    float rot_step = 0.001;
 
     for (int i = 0; i < 3; i++){
 
@@ -568,30 +569,39 @@ VectorXd optimizer::desperate(){
         Matrix4d down_matrix = CVGLConversion(pseudo_exp(down));
 
         optimizer opt_up (this->v_silhouette3d, this->K, this->camera_pose, up_matrix, this->dist);
+        // cout << setprecision(30) << opt_up.GetT() << endl;
         optimizer opt_down (this->v_silhouette3d, this->K, this->camera_pose, down_matrix, this->dist);
+        // cout << setprecision(30) << opt_down.GetT() << endl;
 
-        float dev = (opt_up.GetE0().sum() - opt_down.GetE0().sum())/(2*trans_step);
+        float dev = (opt_up.GetE0().sum() - opt_down.GetE0().sum())/(2*trans_step*0.1);
 
         output(i,0)=dev;
 
     }
 
-    if(false)
+    if(true)
     for (int i = 3; i < 6; i++){
 
         VectorXd increment(6,1); increment.setZero();
         increment(i,0) = rot_step;
 
-        Matrix4d rot_up = pseudo_exp(increment);
-        Matrix4d rot_down = pseudo_exp(-increment);
+        Matrix4d up = pseudo_exp(increment);
+        Matrix4d down = pseudo_exp(-increment);
 
-        Matrix4d up_matrix = CVGLConversion(rot_up * this->T);
-        Matrix4d down_matrix = CVGLConversion(rot_down * this->T);
+        Matrix4d rot_up = this->T;
+        Matrix4d rot_down = this->T;
+
+        rot_up.block<3,3>(0,0) = up.block<3,3>(0,0) * rot_up.block<3,3>(0,0);
+        rot_down.block<3,3>(0,0) = down.block<3,3>(0,0) * rot_down.block<3,3>(0,0);
+
+        Matrix4d up_matrix = CVGLConversion(rot_up);
+        Matrix4d down_matrix = CVGLConversion(rot_down);
 
         optimizer opt_up (this->v_silhouette3d, this->K, this->camera_pose, up_matrix, this->dist);
+        // cout << setprecision(30) << opt_up.GetT() << endl;
         optimizer opt_down (this->v_silhouette3d, this->K, this->camera_pose, down_matrix, this->dist);
-
-        float dev = (opt_up.GetE0().sum() - opt_down.GetE0().sum())/(2*rot_step);
+        // cout << setprecision(30) << opt_down.GetT() << endl;
+        float dev = (opt_up.GetE0().sum() - opt_down.GetE0().sum())/(2*rot_step*1000000);
 
         output(i,0)=dev;
     }
@@ -599,6 +609,11 @@ VectorXd optimizer::desperate(){
     return output;
 
 
+}
+
+std::vector<Vector3d> optimizer::GetPoint(){
+
+    return this->v_silhouette3d;
 }
 
 
