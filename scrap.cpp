@@ -76,80 +76,6 @@ using namespace Eigen;
 //     return data[a] < data[b];
 // }
 
-void LoadModel(std::string Filename, vector<Vector3f> & Vertices, vector< vector<int> >& face)
-{
-    FILE * Model;
-
-    Model = fopen(Filename.c_str(),"r");
-
-    if( Model == NULL){
-        std::cout << "Cannot open the file" <<std::endl;
-    }
-
-    std::cout << "Successfully open the file" << std::endl;
-
-    while(1) {
-        char lineHeader [80];
-
-
-        int res = fscanf(Model,"%s", lineHeader);
-
-        if (res == EOF) {
-            std::cout << "Complete Reading the file" << std::endl;
-            break;
-        }
-
-        if (strcmp(lineHeader, "v") == 0) {
-            Eigen::Vector3f Vertex;
-            fscanf(Model, "%f %f %f\n", &Vertex[0], &Vertex[1], &Vertex[2]);
-            Vertices.push_back(Vertex);
-        } else if(strcmp(lineHeader,"f")==0){
-            std::vector<int> vertexIndex (4);
-            fscanf(Model, "%d//%*d %d//%*d %d//%*d %d//%*d\n", &vertexIndex[0], &vertexIndex[1], &vertexIndex[2],&vertexIndex[3]);
-            face.push_back(vertexIndex);
-        }
-    }
-
-    std::cout << "Complete Loading the model" << std::endl;
-
-    }
-
-bool c_vertex( const Vector3f& a, const Vector3f& b){
-
-    if (a[0] == b[0] && a[1] == b[1] && a[2] == b[2]){
-
-        return true;
-    }else{
-
-        return false;
-    }
-
-} 
-
-struct edge {
-
-    Vector3f vertex1;
-    Vector3f vertex2;
-
-    int index1;
-    int index2;
-
-};
-
-bool c_edge( const edge& a, const edge& b){
-    
-    if ( c_vertex(a.vertex1, b.vertex1) || c_vertex(a.vertex1, b.vertex2)){
-
-        if ( c_vertex(a.vertex2, b.vertex1) || c_vertex(a.vertex2, b.vertex2) ){
-
-            return true;
-        }
-    }else{
-
-        return false;
-    }
-
-}
 
 
 int main() {
@@ -319,11 +245,11 @@ int main() {
 
     // Generate fill for David
 
-    std::vector<Vector3f> vertices;
+    std::vector<Vector3d> vertices;
     std::vector< vector<int> > face;
     string filename = "/home/xinghui/Find-Silhouette/simple_sat.obj";
 
-    LoadModel(filename, vertices, face);
+    LoadModelQuad(filename, vertices, face);
 
     std::vector<edge> edges;
 
@@ -425,6 +351,7 @@ int main() {
     Vector3d trans; trans << -1500,1500,203000;
     cout <<  delta.matrix()* mat << "\n " << endl;
     cout << delta.matrix() * trans << "\n"<< endl;
+
 
 
 

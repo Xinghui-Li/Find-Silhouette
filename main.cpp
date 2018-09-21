@@ -83,7 +83,7 @@ int main( int argc, char *argv[] )
         };
     
     Matrix4d object_pose2; object_pose2 << 0,-1,0,-1000,1,0,0,1000,0,0,1,-203000,0,0,0,1;
-    Vector3d disturb; disturb << 0.2, 0.2, 0.2;
+    Vector3d disturb; disturb << 0.0, 0.0, 0.0;
     Sophus::SO3d dis = Sophus::SO3d::exp(disturb);
 
     object_pose2.block<3,3>(0,0) = dis.matrix() * object_pose2.block<3,3>(0,0);
@@ -92,7 +92,7 @@ int main( int argc, char *argv[] )
     glm::mat4 Model = ConvertEigenMat4fToGlm(object_pose2);
     Matrix4d E_perspective = ConvertGlmToEigenMat4f(perspective);
     Matrix4d E_Camera_pose = ConvertGlmToEigenMat4f(Camera_pose);
-    cout << "E_Camera_pose" << E_Camera_pose << endl;
+    cout << "E_Camera_pose \n" << E_Camera_pose << endl;
 
     Matrix4d E_Model = ConvertGlmToEigenMat4f(Model);
 
@@ -129,8 +129,6 @@ int main( int argc, char *argv[] )
         triangles.push_back(tri);
 
     }
-    
-    // cout << "The size of triangles is " << triangles.size() << endl;
 
     vector<double> area;
 
@@ -140,12 +138,8 @@ int main( int argc, char *argv[] )
         area.push_back(A);
     }
 
-    // cout << "The size of area is " << area.size() << endl;
-
     vector<int> sorted_index;
     sorted_index = indexSort(area);
-
-    // cout << "The size of sorted_index is " << sorted_index.size() << endl;
 
     vector<Vector3d> picked_vertices;
 
@@ -160,7 +154,85 @@ int main( int argc, char *argv[] )
         
     }
 
-    // cout << "The size of picked_vertices is " << picked_vertices.size() << endl;    
+    // Try to interpolate more point on the main skeleton of the satellite, the body and the solar panel
+
+    std::vector<Vector3d> vert;
+    std::vector< vector<int> > face;
+
+    LoadModelQuad("/home/xinghui/Find-Silhouette/simple_sat.obj", vert, face);
+
+    std::vector<edge> edges;
+
+    // cout << 4 % 4 << endl;
+
+    for (int i = 0; i < face.size(); i++){
+    
+        for ( int j = 0; j < 4; j++){
+
+            int index1 = j % 4;
+            int index2 = (j+1) % 4;
+            
+            edge ed;
+
+            ed.vertex1 = vert[face[i][index1]-1];
+            ed.vertex2 = vert[face[i][index2]-1];
+            ed.index1 = face[i][index1];
+            ed.index2 = face[i][index2];
+
+
+            if (edges.size() == 0){
+
+                edges.push_back(ed);
+
+            }else{
+
+                int count = 0;
+
+                for ( int k = 0; k < edges.size(); k++){
+
+                    if ( c_edge(ed, edges[k]) ){
+
+                        count ++;
+
+                    }
+
+                }
+
+                if (count == 0){
+
+                    edges.push_back(ed);
+                }
+            }
+
+        }
+    }
+
+    std::vector<glm::vec3> extra;
+
+    for (int i = 0; i < edges.size(); i++){
+
+        Vector3d a = edges[i].vertex1;
+        Vector3d b = edges[i].vertex2;
+        double len = (a-b).norm();
+        Vector3d n = (b-a)/len;
+        double d = 400;
+
+        Vector3d current = a;
+        double res = (b-current).norm();
+        
+        while( res > d ){
+
+            Vector3d New = current + d*n;
+            extra.push_back(ConvertEigen3dToGlm(New));
+            current = New;
+            res = (b-current).norm();
+
+        }
+
+    }
+
+
+    cout << "The size of extra is " << extra.size() << endl;
 
     //---------------------------------- start of the algorithm ---------------------------------------
     
@@ -255,6 +327,8 @@ int main( int argc, char *argv[] )
 
     glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texColorBuffer, 0 );
 
+    
+
     Mat original = imread(original_path.c_str());
     Mat noise = imread(noise_path.c_str());
 
@@ -327,9 +401,11 @@ int main( int argc, char *argv[] )
         // glReadPixels(0,0, width, height, GL_DEPTH_COMPONENT, GL_FLOAT, depth.data);
         // flip(depth, depth, 0);
 
-        
-        
-        vector<Vector3d> v_silhouette3d = SelectSilhouettePoint (image, E_perspective, E_Camera_pose, E_Model, VertexMember);
+        std::vector<glm::vec3> all_point;
+        all_point.reserve(VertexMember.size()+extra.size());
+        all_point.insert(all_point.end(), VertexMember.begin(), VertexMember.end());
+        all_point.insert(all_point.end(), extra.begin(), extra.end());
+        vector<Vector3d> v_silhouette3d = SelectSilhouettePoint (image, E_perspective, E_Camera_pose, E_Model, all_point);
 
         Mat temp, temp2;
         cvtColor(dist8u1, temp, CV_GRAY2RGB);

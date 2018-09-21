@@ -6,7 +6,7 @@ using namespace std;
 using namespace Eigen;
 
 // Convert glm vec3 to eigen Vector3d
-Eigen::Vector3d ConvertGlmToEigen3f( glm::vec3 v ) {
+Eigen::Vector3d ConvertGlmToEigen3f( const glm::vec3& v ) {
     
     Eigen::Vector3d out_v;
     
@@ -19,7 +19,7 @@ Eigen::Vector3d ConvertGlmToEigen3f( glm::vec3 v ) {
 }
 
 // Convert glm mat4 to eigen Matrix4d
-Eigen::Matrix4d ConvertGlmToEigenMat4f ( glm::mat4 mat ) {
+Eigen::Matrix4d ConvertGlmToEigenMat4f (const glm::mat4& mat ) {
     
     Eigen::Matrix4d out_mat;
 
@@ -34,7 +34,7 @@ Eigen::Matrix4d ConvertGlmToEigenMat4f ( glm::mat4 mat ) {
 }
 
 // Convert Eigen Matrix4d to glm mat4
-glm::mat4 ConvertEigenMat4fToGlm (Eigen::Matrix4d mat){
+glm::mat4 ConvertEigenMat4fToGlm (const Eigen::Matrix4d& mat){
     
     glm::mat4 out_mat;
 
@@ -48,8 +48,20 @@ glm::mat4 ConvertEigenMat4fToGlm (Eigen::Matrix4d mat){
 
 }
 
+glm::vec3 ConvertEigen3dToGlm (const Vector3d& v ){
+
+    glm::vec3 out_v;
+    
+    out_v.x = v[0];
+    out_v.y = v[1];
+    out_v.z = v[2];
+
+    return out_v;
+
+}
+
 // Dehomogeneous the vector from 4 element down to 3.
-Eigen::Vector3d pi4to3f ( Eigen::Vector4d v ) {
+Eigen::Vector3d pi4to3f ( const Eigen::Vector4d& v ) {
     
     Eigen::Vector3d out_v;
 
@@ -62,7 +74,7 @@ Eigen::Vector3d pi4to3f ( Eigen::Vector4d v ) {
 }
 
 // Dehomogeneous the vector from 3 element down to 2.
-Eigen::Vector2d pi3to2f ( Eigen::Vector3d v ) {
+Eigen::Vector2d pi3to2f ( const Eigen::Vector3d& v ) {
     
     Eigen::Vector2d out_v;
 
@@ -74,7 +86,7 @@ Eigen::Vector2d pi3to2f ( Eigen::Vector3d v ) {
 }
 
 // convert a 3D vector to homogeneous vector. 
-Eigen::Vector4d pi3to4f ( Eigen::Vector3d v ) {
+Eigen::Vector4d pi3to4f ( const Eigen::Vector3d& v ) {
     
     Eigen::Vector4d out_v;
 
@@ -87,7 +99,7 @@ Eigen::Vector4d pi3to4f ( Eigen::Vector3d v ) {
 
 }
 
-Matrix4d pseudo_exp( VectorXd delta ){
+Matrix4d pseudo_exp( const VectorXd& delta ){
 
     VectorXd after_trans = delta.head(3);
     VectorXd after_rot = delta.tail(3);
@@ -148,7 +160,7 @@ int FloatRoundToInt(float a){
 
 // Search the 3*3 neighbour of the selected pixel (x,y) to see if any of its neighbours is background, return true if it have background in its neighbour. 
 // Quite stupid, could find a better way. 
-bool SearchNeighbour (cv::Mat image, int x, int y ) {
+bool SearchNeighbour (const cv::Mat& image, int x, int y ) {
  
     int count = 0;
 
@@ -196,7 +208,7 @@ void DrawPoint (cv::Mat image, int x , int y ){
 }
 
 // negate the second and third rows of the matrix. This can be used to convert between opengl and opencv model-pose matrix
-Eigen::Matrix4d CVGLConversion ( Eigen::Matrix4d mat ){
+Eigen::Matrix4d CVGLConversion ( const Eigen::Matrix4d& mat ){
 
     Eigen::Matrix4d out_mat;
     
@@ -212,7 +224,7 @@ Eigen::Matrix4d CVGLConversion ( Eigen::Matrix4d mat ){
 }
 
 // Project the 3D point on the opencv image with defined coordinate in opengl coordinate
-Eigen::Vector2i ProjectOnCVimage (int width, int height, Eigen::Matrix4d perspective, Eigen::Matrix4d camera_pose, Eigen::Matrix4d model_pose, Eigen::Vector3d vertex){
+Eigen::Vector2i ProjectOnCVimage (int width, int height, Eigen::Matrix4d perspective, Eigen::Matrix4d camera_pose, Eigen::Matrix4d model_pose, const Eigen::Vector3d& vertex){
 
     Eigen::Vector4d vertex_hat = pi3to4f(vertex);
 
@@ -227,7 +239,7 @@ Eigen::Vector2i ProjectOnCVimage (int width, int height, Eigen::Matrix4d perspec
 }
 
 // Select 3D point on the silhouette of the image
-vector<Vector3d> SelectSilhouettePoint (Mat image, Matrix4d perspective, Matrix4d camera_pose, Matrix4d model_pose, vector<glm::vec3> vertex){
+vector<Vector3d> SelectSilhouettePoint (Mat image, Matrix4d perspective, Matrix4d camera_pose, Matrix4d model_pose, const vector<glm::vec3>& vertex){
 
     vector<Vector3d> v_silhouette3d;
     int width = image.cols;
@@ -250,7 +262,7 @@ vector<Vector3d> SelectSilhouettePoint (Mat image, Matrix4d perspective, Matrix4
 }
 
 // Compute distance transform of the input, first denoising and then compute distance transform
-Mat DistanceMap ( Mat original, Mat noise ){
+Mat DistanceMap ( const Mat& original, const Mat& noise ){
 
     Mat im_temp = original - noise; 
     Mat denoise;
@@ -397,8 +409,12 @@ void LoadModelQuad(std::string Filename, vector<Vector3d> & Vertices, vector< ve
         }
 
         if (strcmp(lineHeader, "v") == 0) {
-            Eigen::Vector3f Vertex;
-            fscanf(Model, "%f %f %f\n", &Vertex[0], &Vertex[1], &Vertex[2]);
+            Eigen::Vector3d Vertex;
+            float a,b,c;
+            fscanf(Model, "%f %f %f\n", &a, &b, &c);
+            Vertex[0] = a;
+            Vertex[1] = b;
+            Vertex[2] = c;
             Vertices.push_back(Vertex);
         } else if(strcmp(lineHeader,"f")==0){
             std::vector<int> vertexIndex (4);
