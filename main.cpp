@@ -319,11 +319,16 @@ int main( int argc, char *argv[] )
         
         // Save the frame as an 3-channel image
         cv::Mat image(height, width, CV_8UC3);
-        // out = "/home/xinghui/Find-Silhouette/image.png";
         glReadPixels(0 ,0 ,width ,height ,GL_RGB ,GL_UNSIGNED_BYTE, image.data);
         cv::flip(image, image, 0);
-        // cv::imwrite(out, image);
+        // cv::imwrite("/home/xinghui/Find-Silhouette/silhouette.png", image);
 
+        // Mat depth(height, width, CV_32FC1);
+        // glReadPixels(0,0, width, height, GL_DEPTH_COMPONENT, GL_FLOAT, depth.data);
+        // flip(depth, depth, 0);
+
+        
+        
         vector<Vector3d> v_silhouette3d = SelectSilhouettePoint (image, E_perspective, E_Camera_pose, E_Model, VertexMember);
 
         Mat temp, temp2;
@@ -345,12 +350,17 @@ int main( int argc, char *argv[] )
         optimizer opt(v_silhouette3d, K, E_Camera_pose, E_Model, distmap);
         opt.Draw(temp2);
         imshow(" OpenCV ", temp2);
-        Eigen::VectorXd dev = opt.desperate();
+        // Eigen::VectorXd dev = opt.desperate();
 
-        VectorXd current_p = pseudo_log(opt.GetT());
-        current_p = current_p - 1*dev;
-        Matrix4d current_T = pseudo_exp(current_p);
-        cout << "Current derivative is \n" << dev << " \n" << endl;
+        // VectorXd current_p = pseudo_log(opt.GetT());
+        // current_p = current_p - 1*dev;
+        // Matrix4d current_T = pseudo_exp(current_p);
+        // cout << "Current derivative is \n" << dev << " \n" << endl;
+
+        MatrixXd delta = opt.GetDelta();
+        Sophus::SE3d change = Sophus::SE3d::exp(-delta);
+        Matrix4d current_T = change.matrix() * opt.GetT();
+
 
 
     
@@ -401,7 +411,7 @@ int main( int argc, char *argv[] )
         cout <<  opt.GetE0().sum()  << endl;
         cout << "------------------------------------------------------------------" << endl;
         cout << "Pose is " << endl;
-        cout <<  opt.GetT()  << endl;
+        cout << CVGLConversion(opt.GetT())  << endl;
         cout << "------------------------------------------------------------------" << endl;
 
     

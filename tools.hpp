@@ -35,16 +35,32 @@ Eigen::Matrix4d CVGLConversion ( Eigen::Matrix4d mat );
 Eigen::Vector2i ProjectOnCVimage (int width, int height, Eigen::Matrix4d perspective, Eigen::Matrix4d camera_pose, Eigen::Matrix4d model_pose, Eigen::Vector3d vertex);
 vector<Vector3d> SelectSilhouettePoint (Mat image, Matrix4d perspective, Matrix4d camera_pose, Matrix4d model_pose, vector<glm::vec3> vertex);
 Mat DistanceMap ( Mat original, Mat noise );
-Eigen::MatrixXd dev_dist( Mat image, int image_x, int image_y);
-Eigen::MatrixXd dev_pi3to2(float x, float y, float z);
+Eigen::MatrixXd dev_dist(const Mat& image, int image_x, int image_y);
+Eigen::MatrixXd dev_dist_double( const Mat& image, double image_x, double image_y);
+Eigen::MatrixXd dev_pi3to2(double x, double y, double z);
 
 struct triangle{
     Vector3d vertex1;
     Vector3d vertex2;
     Vector3d vertex3; 
 };
+
+struct edge {
+
+    Vector3d vertex1;
+    Vector3d vertex2;
+
+    int index1;
+    int index2;
+
+};
 double Area(triangle tri);
 vector<int> indexSort( vector<double> x );
+
+void LoadModelQuad(std::string Filename, vector<Vector3d> & Vertices, vector< vector<int> >& face);
+bool c_vertex( const Vector3d& a, const Vector3d& b);
+bool c_edge( const edge& a, const edge& b);
+
 
 class optimizer {
 

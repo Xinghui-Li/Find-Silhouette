@@ -301,7 +301,7 @@ Mat DistanceMap ( Mat original, Mat noise ){
 }
 
 // Compute the derivative of the distance map    
-Eigen::MatrixXd dev_dist( Mat image, int image_x, int image_y){
+Eigen::MatrixXd dev_dist( const Mat& image, int image_x, int image_y){
 
     Eigen::MatrixXd gradient (1,2);
 
@@ -312,12 +312,12 @@ Eigen::MatrixXd dev_dist( Mat image, int image_x, int image_y){
 
 }
 
-Eigen::MatrixXd dev_dist_float( Mat image, float image_x, float image_y){
+Eigen::MatrixXd dev_dist_double( const Mat& image, double image_x, double image_y){
 
     Eigen::MatrixXd gradient (1,2);
 
-    gradient(0,0) = (float) (bilinearInterpolate<float>(image, image_x+1, image_y) - bilinearInterpolate<float>(image, image_x-1, image_y))/2.f;
-    gradient(0,1) = (float) (bilinearInterpolate<float>(image, image_x, image_y+1) - bilinearInterpolate<float>(image, image_x, image_y+1))/2.f;
+    gradient(0,0) = (double) (bilinearInterpolate<double>(image, image_x+0.1, image_y) - bilinearInterpolate<double>(image, image_x-0.1, image_y))/.2f;
+    gradient(0,1) = (double) (bilinearInterpolate<double>(image, image_x, image_y+0.1) - bilinearInterpolate<double>(image, image_x, image_y-0.1))/.2f;
 
     return gradient;
 
@@ -325,7 +325,7 @@ Eigen::MatrixXd dev_dist_float( Mat image, float image_x, float image_y){
 
 
 // Compute the jacobian matrix of the pi3to2 function
-Eigen::MatrixXd dev_pi3to2(float x, float y, float z){
+Eigen::MatrixXd dev_pi3to2(double x, double y, double z){
 
     Eigen::MatrixXd out_mat(2,3);
 
@@ -370,6 +370,71 @@ vector<int> indexSort( vector<double> x ){
                 [&](int i1, int i2) { return x[i1] < x[i2]; } );
 
     return index;
+
+}
+
+void LoadModelQuad(std::string Filename, vector<Vector3d> & Vertices, vector< vector<int> >& face)
+{
+    FILE * Model;
+
+    Model = fopen(Filename.c_str(),"r");
+
+    if( Model == NULL){
+        std::cout << "Cannot open the file" <<std::endl;
+    }
+
+    std::cout << "Successfully open the file" << std::endl;
+
+    while(1) {
+        char lineHeader [80];
+
+
+        int res = fscanf(Model,"%s", lineHeader);
+
+        if (res == EOF) {
+            std::cout << "Complete Reading the file" << std::endl;
+            break;
+        }
+
+        if (strcmp(lineHeader, "v") == 0) {
+            Eigen::Vector3f Vertex;
+            fscanf(Model, "%f %f %f\n", &Vertex[0], &Vertex[1], &Vertex[2]);
+            Vertices.push_back(Vertex);
+        } else if(strcmp(lineHeader,"f")==0){
+            std::vector<int> vertexIndex (4);
+            fscanf(Model, "%d//%*d %d//%*d %d//%*d %d//%*d\n", &vertexIndex[0], &vertexIndex[1], &vertexIndex[2],&vertexIndex[3]);
+            face.push_back(vertexIndex);
+        }
+    }
+
+    std::cout << "Complete Loading the model" << std::endl;
+
+    }
+
+bool c_vertex( const Vector3d& a, const Vector3d& b){
+
+    if (a[0] == b[0] && a[1] == b[1] && a[2] == b[2]){
+
+        return true;
+    }else{
+
+        return false;
+    }
+
+} 
+
+bool c_edge( const edge& a, const edge& b){
+    
+    if ( c_vertex(a.vertex1, b.vertex1) || c_vertex(a.vertex1, b.vertex2)){
+
+        if ( c_vertex(a.vertex2, b.vertex1) || c_vertex(a.vertex2, b.vertex2) ){
+
+            return true;
+        }
+    }else{
+
+        return false;
+    }
 
 }
 
@@ -427,14 +492,14 @@ Eigen::MatrixXd optimizer::GetJ(){
         Eigen::Vector3d p_hat = pi4to3f(this->T * pi3to4f(p));
         Eigen::Vector3d x_hat = this->K * p_hat;
         Eigen::Vector2d x = pi3to2f( x_hat );
-        float image_x = x[0];
-        float image_y = x[1];
+        double image_x = x[0];
+        double image_y = x[1];
 
         Eigen::MatrixXd grad_dist;
         if(false)
             grad_dist = dev_dist(this->dist, FloatRoundToInt(image_x), FloatRoundToInt(image_y));
         else
-            grad_dist = dev_dist_float(this->dist, image_x, image_y);
+            grad_dist = dev_dist_double(this->dist, image_x, image_y);
         Eigen::MatrixXd grad_pi = dev_pi3to2(x_hat[0], x_hat[1], x_hat[2]);
 
         Eigen::MatrixXd gpK = grad_dist * grad_pi * this->K;
@@ -472,6 +537,9 @@ Eigen::MatrixXd optimizer::GetDelta(){
     Eigen::MatrixXd J = GetJ();
     Eigen::MatrixXd temp = J.transpose()*J; 
     delta = temp.inverse()*J.transpose()*E0;
+
+    cout << "Current delta is " << endl;
+    cout << delta << endl;
 
     return delta;
 }
