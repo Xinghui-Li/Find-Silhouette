@@ -170,7 +170,8 @@ bool SearchNeighbour (const cv::Mat& image, int x, int y ) {
 			if ( image.at<cv::Vec3b>(y+i,x+j)[0] < 50 && 
                  image.at<cv::Vec3b>(y+i,x+j)[1] < 50 &&
                  image.at<cv::Vec3b>(y+i,x+j)[2] < 50 &&
-                0 <= x+j && x+j < image.cols && 0 <= y+i && y+i < image.rows){ 
+                0 < x+j && x+j < image.cols-1 && 0 < y+i && y+i < image.rows-1 &&
+                0 < x && x < image.cols-1 && 0 < y && y < image.rows-1 ){ 
 
 				count++;
 
@@ -554,8 +555,8 @@ Eigen::MatrixXd optimizer::GetDelta(){
     Eigen::MatrixXd temp = J.transpose()*J; 
     delta = temp.inverse()*J.transpose()*E0;
 
-    cout << "Current delta is " << endl;
-    cout << delta << endl;
+    // cout << "Current delta is " << endl;
+    // cout << delta << endl;
 
     return delta;
 }

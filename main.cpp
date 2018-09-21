@@ -82,7 +82,7 @@ int main( int argc, char *argv[] )
         0.0f, 0.0f, 0.0f, 1.0f
         };
     
-    Matrix4d object_pose2; object_pose2 << 0,-1,0,-1000,1,0,0,1000,0,0,1,-203000,0,0,0,1;
+    Matrix4d object_pose2; object_pose2 << 0,-1,0,-1500,1,0,0,1500,0,0,1,-203000,0,0,0,1;
     Vector3d disturb; disturb << 0.0, 0.0, 0.0;
     Sophus::SO3d dis = Sophus::SO3d::exp(disturb);
 
@@ -234,6 +234,11 @@ int main( int argc, char *argv[] )
 
     cout << "The size of extra is " << extra.size() << endl;
 
+    std::vector<glm::vec3> all_point;
+    all_point.reserve(VertexMember.size()+extra.size());
+    all_point.insert(all_point.end(), VertexMember.begin(), VertexMember.end());
+    all_point.insert(all_point.end(), extra.begin(), extra.end());
+
     //---------------------------------- start of the algorithm ---------------------------------------
     
     // Initialise GLFW
@@ -327,9 +332,12 @@ int main( int argc, char *argv[] )
 
     glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texColorBuffer, 0 );
 
-    
+    for (int z = 1; z < 501; z++){
 
-    Mat original = imread(original_path.c_str());
+    std::stringstream ss;
+    ss << "/home/xinghui/Documents/SatelliteTracking/test" << "/images/" << std::setfill('0') << std::setw(4) << z << ".png";
+
+    Mat original = imread(ss.str().c_str());
     Mat noise = imread(noise_path.c_str());
 
     Mat distmap = DistanceMap(original, noise);
@@ -346,13 +354,16 @@ int main( int argc, char *argv[] )
     Mat dist8u1;
     normalize(distmap, dist8u1, 0.0, 255, NORM_MINMAX, CV_8UC3);
 
+    Matrix4d output_pose;
+    double output_energy;
+    std::vector<Vector3d> output_sil;
     // cout << endl;
 
     // return 0;
 
     imwrite("/home/xinghui/Find-Silhouette/dist.png", distmap);
     // do{
-    for (int i = 0; i < 200; i++){
+    for (int i = 0; i < 20; i++){
         
         glm::mat4 glmT = Camera_pose * Model;
         glm::mat4 MVP = perspective * glmT;    
@@ -401,31 +412,31 @@ int main( int argc, char *argv[] )
         // glReadPixels(0,0, width, height, GL_DEPTH_COMPONENT, GL_FLOAT, depth.data);
         // flip(depth, depth, 0);
 
-        std::vector<glm::vec3> all_point;
-        all_point.reserve(VertexMember.size()+extra.size());
-        all_point.insert(all_point.end(), VertexMember.begin(), VertexMember.end());
-        all_point.insert(all_point.end(), extra.begin(), extra.end());
+        
         vector<Vector3d> v_silhouette3d = SelectSilhouettePoint (image, E_perspective, E_Camera_pose, E_Model, all_point);
+        output_sil = v_silhouette3d;
 
-        Mat temp, temp2;
-        cvtColor(dist8u1, temp, CV_GRAY2RGB);
-        // imwrite("dist.png", dist8u1);
-        temp.copyTo(temp2);
+        // Mat temp, temp2;
+        // cvtColor(dist8u1, temp, CV_GRAY2RGB);
+        // // imwrite("dist.png", dist8u1);
+        // temp.copyTo(temp2);
 
-        for (int j = 0; j < v_silhouette3d.size(); j++){
+        // for (int j = 0; j < v_silhouette3d.size(); j++){
 
-            Vector3d v = v_silhouette3d[j];
+        //     Vector3d v = v_silhouette3d[j];
 
-            Vector2i pixel = ProjectOnCVimage(width, height, E_perspective, E_Camera_pose, E_Model, v);
-            DrawPoint(temp, pixel[0], pixel[1]);
-        }
+        //     Vector2i pixel = ProjectOnCVimage(width, height, E_perspective, E_Camera_pose, E_Model, v);
+        //     DrawPoint(temp, pixel[0], pixel[1]);
+        // }
 
-        imshow(" OpenGL ", temp);
-        // imwrite("/home/xinghui/Find-Silhouette/projected.png", temp);
+        // imshow(" OpenGL ", temp);
+        // // imwrite("/home/xinghui/Find-Silhouette/projected.png", temp);
 
         optimizer opt(v_silhouette3d, K, E_Camera_pose, E_Model, distmap);
-        opt.Draw(temp2);
-        imshow(" OpenCV ", temp2);
+        // opt.Draw(temp2);
+        // imshow(" OpenCV ", temp2);
+
+
         // Eigen::VectorXd dev = opt.desperate();
 
         // VectorXd current_p = pseudo_log(opt.GetT());
@@ -482,25 +493,58 @@ int main( int argc, char *argv[] )
 
 
  
-        cout << "------------------------------------------------------------------" << endl;
-        cout << "Total Energy is " << endl;
-        cout <<  opt.GetE0().sum()  << endl;
-        cout << "------------------------------------------------------------------" << endl;
-        cout << "Pose is " << endl;
-        cout << CVGLConversion(opt.GetT())  << endl;
-        cout << "------------------------------------------------------------------" << endl;
+        // cout << "------------------------------------------------------------------" << endl;
+        // cout << "Total Energy is " << endl;
+        // cout <<  opt.GetE0().sum()  << endl;
+        // cout << "------------------------------------------------------------------" << endl;
+        // cout << "Pose is " << endl;
+        // cout << CVGLConversion(opt.GetT())  << endl;
+        // cout << "------------------------------------------------------------------" << endl;
 
     
-
-
-
-
         E_Model = CVGLConversion(current_T);
         Model = ConvertEigenMat4fToGlm(E_Model);
 
+        output_pose = E_Model;
+        output_energy = opt.GetE0().sum();
+        // cvWaitKey(0);
+    }
+    cout << "------------------------------------------------------------------" << endl;
+    cout << "The number of frame " << z << endl;
+    cout << "------------------------------------------------------------------" << endl;
+    cout << "Total Energy is " << endl;
+    cout <<  output_energy << endl;
+    cout << "------------------------------------------------------------------" << endl;
+    cout << "Pose is " << endl;
+    cout << output_pose  << endl;
+    cout << "------------------------------------------------------------------" << endl;
 
-        cvWaitKey(0);
-    }  
+    Mat temp, temp2;
+    cvtColor(dist8u1, temp, CV_GRAY2RGB);
+    original.copyTo(temp2);
+
+    for (int j = 0; j < output_sil.size(); j++){
+
+        Vector3d v = output_sil[j];
+
+        Vector2i pixel = ProjectOnCVimage(width, height, E_perspective, E_Camera_pose, output_pose, v);
+        DrawPoint(temp, pixel[0], pixel[1]);
+        DrawPoint(temp2, pixel[0], pixel[1]);
+    }
+
+    imshow("Input Image", temp2);
+    imshow("Distance Map", temp);
+
+    // write out pose
+    ss.str("");
+    ss << "/home/xinghui/Find-Silhouette/output_pose/"
+    << std::setfill('0') << std::setw(4) << z << ".txt";
+    std::ofstream outFile(ss.str());
+    outFile << output_pose << std::endl;
+    outFile.close();
+    cvWaitKey(10);
+
+}
         // delete the framebuffer
         glDeleteFramebuffers(1, &frameBuffer);
 
