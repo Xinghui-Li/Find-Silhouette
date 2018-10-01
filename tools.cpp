@@ -170,8 +170,8 @@ bool SearchNeighbour (const cv::Mat& image, int x, int y ) {
 			if ( image.at<cv::Vec3b>(y+i,x+j)[0] < 50 && 
                  image.at<cv::Vec3b>(y+i,x+j)[1] < 50 &&
                  image.at<cv::Vec3b>(y+i,x+j)[2] < 50 &&
-                0 < x+j && x+j < image.cols-1 && 0 < y+i && y+i < image.rows-1 &&
-                0 < x && x < image.cols-1 && 0 < y && y < image.rows-1 ){ 
+                1 < x+j && x+j < image.cols-2 && 0 < y+i && y+i < image.rows-2 &&
+                1 < x && x < image.cols-2 && 0 < y && y < image.rows-2 ){ 
 
 				count++;
 
@@ -266,11 +266,13 @@ vector<Vector3d> SelectSilhouettePoint (Mat image, Matrix4d perspective, Matrix4
 Mat DistanceMap ( const Mat& original, const Mat& noise ){
 
     Mat im_temp = original - noise; 
+    // Mat im_temp2;
+    // imwrite("/home/xinghui/Find-Silhouette/report/no_back_noise.png", im_temp);
     Mat denoise;
 
     int morph_elem = 0;
     // morph_size defines the size of the kernel
-    int morph_size =2;
+    int morph_size = 2;
     // morph_operator defines the operation
         // 0: MORPH_ERODE
         // 1: MORPH_DILATE
@@ -282,12 +284,18 @@ Mat DistanceMap ( const Mat& original, const Mat& noise ){
         // 7: MORPH_HITMISS
     int morph_operator = 3;
     Mat element = cv::getStructuringElement(morph_elem, cv::Size(2 * morph_size + 1, 2 * morph_size + 1), cv::Point(morph_size, morph_size));
-    morphologyEx(im_temp, denoise, morph_operator, element);
-
+    morphologyEx(im_temp, im_temp, morph_operator, element);
+    // morphologyEx(im_temp, im_temp, morph_operator, element);
+    // imwrite("/home/xinghui/Find-Silhouette/report/after_closing.png", im_temp);
+    // imshow("denoised input", denoise);
+    threshold(im_temp, denoise, 50, 255, cv::THRESH_BINARY);
+    // imwrite("/home/xinghui/Find-Silhouette/report/after_binary.png", denoise);
     Mat edge;
     Canny(denoise, edge, 0, 255, 3, true);
+    // imwrite("/home/xinghui/Find-Silhouette/report/after_canny.png", edge);
     Mat binary;
     threshold(edge, binary, 50, 255, cv::THRESH_BINARY_INV);
+    // imwrite("/home/xinghui/Find-Silhouette/report/after_inv.png", binary);
     Mat dist;
     distanceTransform(binary, dist, DIST_L2, DIST_MASK_PRECISE );
     pow(dist, 0.5, dist);
@@ -484,19 +492,19 @@ Eigen::MatrixXd optimizer::GetE0(){
             E0(i,0) = e0;    
         }
         else{
+            
             double image_x = x[0];
             double image_y = x[1];
 
-
             double e0 = bilinearInterpolate<double>(this->dist, image_x, image_y);
-            // cout << "Index "<< i << ":  " << x[0] << " " << x[1] << "    e0 = " << e0 <<endl;
+
             E0(i,0) = e0;    
         }
     }
 
     return E0;
-
 }
+
 
 
 Eigen::MatrixXd optimizer::GetJ(){
@@ -539,7 +547,9 @@ Eigen::MatrixXd optimizer::GetJ(){
         // cout << "-----------------------------------------------------------" << endl;
 
         for (int j = 0; j < 6; j++){
+            
             J(i,j) = jacobian(0,j);
+
         }
 
     }

@@ -55,13 +55,10 @@ int main( int argc, char *argv[] )
 {
     //--------------------------- input section ---------------------------
 
-    string original_path = "/home/xinghui/Find-Silhouette/0001.png";
-    string noise_path = "/home/xinghui/Find-Silhouette/noise.png";
-
     // Intrinsic matrix : 10° Field of View, 4:3 ratio, display range : 0.1 unit <-> 300000 units
-    glm::mat4 perspective = glm::perspective(glm::radians(10.0f), 4.0f / 3.0f, 0.1f, 300000.0f);
+    glm::mat4 perspective = glm::perspective(glm::radians(15.2f), 4.0f / 3.0f, 0.1f, 300000.0f);
     // This is the camera intrinsic matrix for using opencv projection
-    Eigen::Matrix3d K; K << 2743.21, 0, 320,0, 2743.21, 240, 0, 0, 1;
+    Eigen::Matrix3d K; K << 1798.72, 0, 320,0, 1798.72, 240, 0, 0, 1;
     // Camera's pose
     glm::mat4 Camera_pose       = glm::lookAt(
                                 glm::vec3(0,0,0), // Camera is at (0,0,0), in World Space
@@ -76,13 +73,13 @@ int main( int argc, char *argv[] )
     //     0.0f, 0.0f, 0.0f, 1.0f
     //     };
     float object_pose[16] = {
-        0.0f, -1.0f, 0.0f, -1500.0f,
-        1.0f, 0.0f, 0.0f, 1500.0f,
-        0.0f, 0.0f, 1.0f, -203000.0f,
+        0.0f, -1.0f, 0.0f, -0.0f,
+        1.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, -100000.0f,
         0.0f, 0.0f, 0.0f, 1.0f
         };
     
-    Matrix4d object_pose2; object_pose2 << 0,-1,0,-1500,1,0,0,1500,0,0,1,-203000,0,0,0,1;
+    Matrix4d object_pose2; object_pose2 << 0,-1,0,-600,1,0,0,700,0,0,1,-263000,0,0,0,1;
     Vector3d disturb; disturb << 0.0, 0.0, 0.0;
     Sophus::SO3d dis = Sophus::SO3d::exp(disturb);
 
@@ -215,7 +212,7 @@ int main( int argc, char *argv[] )
         Vector3d b = edges[i].vertex2;
         double len = (a-b).norm();
         Vector3d n = (b-a)/len;
-        double d = 400;
+        double d = 600;
 
         Vector3d current = a;
         double res = (b-current).norm();
@@ -332,13 +329,19 @@ int main( int argc, char *argv[] )
 
     glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texColorBuffer, 0 );
 
-    for (int z = 1; z < 501; z++){
+    Mat init;
+    string baseDir = "/home/xinghui/Find-Silhouette/simulator/traj_image/noise_0.8/";
+    stringstream noise_path;
+    noise_path << baseDir << "noise.jpg";
+
+    for (int z = 1; z < 601; z++){
 
     std::stringstream ss;
-    ss << "/home/xinghui/Documents/SatelliteTracking/test" << "/images/" << std::setfill('0') << std::setw(4) << z << ".png";
+    ss << baseDir << std::setfill('0') << std::setw(4) << z << ".jpg";
 
+    
     Mat original = imread(ss.str().c_str());
-    Mat noise = imread(noise_path.c_str());
+    Mat noise = imread(noise_path.str().c_str());
 
     Mat distmap = DistanceMap(original, noise);
 
@@ -351,17 +354,13 @@ int main( int argc, char *argv[] )
     // myfile<< cv::format(distmap, cv::Formatter::FMT_CSV) << std::endl;
     // myfile.close();
 
-    Mat dist8u1;
+    Mat dist8u1, temp4;
     normalize(distmap, dist8u1, 0.0, 255, NORM_MINMAX, CV_8UC3);
 
     Matrix4d output_pose;
     double output_energy;
     std::vector<Vector3d> output_sil;
-    // cout << endl;
 
-    // return 0;
-
-    imwrite("/home/xinghui/Find-Silhouette/dist.png", distmap);
     // do{
     for (int i = 0; i < 20; i++){
         
@@ -406,6 +405,7 @@ int main( int argc, char *argv[] )
         cv::Mat image(height, width, CV_8UC3);
         glReadPixels(0 ,0 ,width ,height ,GL_RGB ,GL_UNSIGNED_BYTE, image.data);
         cv::flip(image, image, 0);
+        image.copyTo(temp4);
         // cv::imwrite("/home/xinghui/Find-Silhouette/silhouette.png", image);
 
         // Mat depth(height, width, CV_32FC1);
@@ -416,18 +416,24 @@ int main( int argc, char *argv[] )
         vector<Vector3d> v_silhouette3d = SelectSilhouettePoint (image, E_perspective, E_Camera_pose, E_Model, all_point);
         output_sil = v_silhouette3d;
 
-        // Mat temp, temp2;
-        // cvtColor(dist8u1, temp, CV_GRAY2RGB);
+        if (z == 1 && i == 0){
+
+        Mat temp3;
+        cvtColor(dist8u1, temp3, CV_GRAY2RGB);
         // // imwrite("dist.png", dist8u1);
         // temp.copyTo(temp2);
 
-        // for (int j = 0; j < v_silhouette3d.size(); j++){
+        for (int j = 0; j < v_silhouette3d.size(); j++){
 
-        //     Vector3d v = v_silhouette3d[j];
+            Vector3d v = v_silhouette3d[j];
 
-        //     Vector2i pixel = ProjectOnCVimage(width, height, E_perspective, E_Camera_pose, E_Model, v);
-        //     DrawPoint(temp, pixel[0], pixel[1]);
-        // }
+            Vector2i pixel = ProjectOnCVimage(width, height, E_perspective, E_Camera_pose, E_Model, v);
+            DrawPoint(temp3, pixel[0], pixel[1]);
+        }
+
+        temp3.copyTo(init);
+
+        }
 
         // imshow(" OpenGL ", temp);
         // // imwrite("/home/xinghui/Find-Silhouette/projected.png", temp);
@@ -445,6 +451,11 @@ int main( int argc, char *argv[] )
         // cout << "Current derivative is \n" << dev << " \n" << endl;
 
         MatrixXd delta = opt.GetDelta();
+        // cout << opt.GetE0() << endl;
+        // cout << "------------------------------------------------" << endl;
+        // cout << opt.GetJ() << endl;
+        // cout << "------------------------------------------------" << endl;
+        // cout << delta << endl;
         Sophus::SE3d change = Sophus::SE3d::exp(-delta);
         Matrix4d current_T = change.matrix() * opt.GetT();
 
@@ -522,6 +533,8 @@ int main( int argc, char *argv[] )
     Mat temp, temp2;
     cvtColor(dist8u1, temp, CV_GRAY2RGB);
     original.copyTo(temp2);
+    // imwrite("/home/xinghui/Find-Silhouette/report/rendered.png",temp4);
+    Mat temp5; temp4.copyTo(temp5);
 
     for (int j = 0; j < output_sil.size(); j++){
 
@@ -532,17 +545,33 @@ int main( int argc, char *argv[] )
         DrawPoint(temp2, pixel[0], pixel[1]);
     }
 
+    for (int k = 0; k < all_point.size(); k++){
+        Vector3d v = ConvertGlmToEigen3f(all_point[k]);
+
+        Vector2i pixel = ProjectOnCVimage(width, height, E_perspective, E_Camera_pose, output_pose, v);
+
+        DrawPoint(temp5, pixel[0], pixel[1]);
+
+    }
+    // imwrite("/home/xinghui/Find-Silhouette/report/VerOnSil.png",temp4);
+    // imwrite("/home/xinghui/Find-Silhouette/report/AllVer.png",temp5);
+
     imshow("Input Image", temp2);
     imshow("Distance Map", temp);
+    imshow("Rendered Image", temp4);
+    imshow("Initial position", init);
 
+    stringstream ResultFrame;
+    ResultFrame << "/home/xinghui/Find-Silhouette/simulator/rot_image/result_frame/" << std::setfill('0') << std::setw(4) << z << ".jpg";
+    imwrite(ResultFrame.str().c_str(), temp2);
     // write out pose
     ss.str("");
-    ss << "/home/xinghui/Find-Silhouette/output_pose/"
+    ss << baseDir << "result/"
     << std::setfill('0') << std::setw(4) << z << ".txt";
     std::ofstream outFile(ss.str());
     outFile << output_pose << std::endl;
     outFile.close();
-    cvWaitKey(10);
+    cvWaitKey(1);
 
 }
         // delete the framebuffer
